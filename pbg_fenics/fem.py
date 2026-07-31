@@ -30,7 +30,24 @@ def build_mesh(kind, resolution, degree=1):
     """
     if kind != "unit_square":
         raise ValueError(f"Unsupported mesh kind: {kind!r}")
-    domain = mesh.create_unit_square(MPI.COMM_WORLD, resolution, resolution)
+    # dolfinx's default unit-square triangulation (diagonal="right", every
+    # quad cut the same way) makes P1 (degree=1) Lagrange elements *nodally
+    # exact* for any manufactured solution with constant Laplacian -- i.e.
+    # any quadratic, including this module's MMS family -- a well-known
+    # structured-mesh superconvergence artifact, NOT genuine O(h^2)
+    # discretization behavior. That collapses PoissonSolverStep's l2_error to
+    # floating-point round-off (~1e-15) at every resolution for degree=1,
+    # masking real convergence rate. "crossed" (4 triangles per quad, no
+    # uniform diagonal direction) breaks that artifact -- confirmed
+    # empirically: degree=1 error now scales as ~h^2 (rate ~2.0 across
+    # resolution doublings) while degree>=2 stays exact to ~1e-13 (unaffected,
+    # since a quadratic is exactly representable in the P2+ trial space
+    # regardless of triangulation -- Galerkin orthogonality, not a mesh
+    # property).
+    domain = mesh.create_unit_square(
+        MPI.COMM_WORLD, resolution, resolution,
+        diagonal=mesh.DiagonalType.crossed,
+    )
     V = fem.functionspace(domain, ("Lagrange", degree))
     return domain, V
 

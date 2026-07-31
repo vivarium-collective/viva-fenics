@@ -74,6 +74,61 @@ def solve_poisson(domain, V, source_fn, bc_fn):
     return uh.x.array.copy()
 
 
+def diffusion_step(domain, V, u_n_array, source_array, dt, D):
+    """Advance one backward-Euler step of the transient diffusion equation.
+
+    Solves for u given the previous nodal field u_n and an additive nodal
+    source term:
+
+        (u*v + dt*D*dot(grad(u), grad(v))) dx = (u_n + dt*source) * v dx
+
+    No Dirichlet boundary condition is applied, so the boundary is natural
+    Neumann (zero-flux) -- mass is conserved up to the source term.
+
+    Args:
+        domain: dolfinx mesh.
+        V: dolfinx function space over domain.
+        u_n_array: nodal values of the field at the start of the step.
+        source_array: nodal values of the additive source over the step.
+        dt: step size.
+        D: diffusion coefficient.
+
+    Returns:
+        np.ndarray of nodal solution values after the step (uh.x.array copy).
+    """
+    u_n = fem.Function(V)
+    u_n.x.array[:] = u_n_array
+
+    source = fem.Function(V)
+    source.x.array[:] = source_array
+
+    u = ufl.TrialFunction(V)
+    v = ufl.TestFunction(V)
+    a = (u * v + dt * D * ufl.dot(ufl.grad(u), ufl.grad(v))) * ufl.dx
+    L = (u_n + dt * source) * v * ufl.dx
+
+    prefix = f"pbg_fenics_diff_{next(_prefix_counter)}_"
+    problem = LinearProblem(
+        a, L, bcs=[],
+        petsc_options_prefix=prefix,
+        petsc_options={"ksp_type": "preonly", "pc_type": "lu"},
+    )
+    uh = problem.solve()
+    return uh.x.array.copy()
+
+
+def field_integral(domain, V, array):
+    """Integrate a nodal field over the domain: returns a float scalar of
+    integral(u) dx, computed via dolfinx's assemble_scalar (consistent with
+    the FEM mass matrix, not a naive nodal sum).
+    """
+    uh = fem.Function(V)
+    uh.x.array[:] = array
+    form = fem.form(uh * ufl.dx)
+    local = fem.assemble_scalar(form)
+    return float(domain.comm.allreduce(local, op=MPI.SUM))
+
+
 def node_coords(V):
     """Return dof coordinates for V, shape (N, 2)."""
     return V.tabulate_dof_coordinates()[:, :2]

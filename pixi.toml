@@ -1,0 +1,25 @@
+[workspace]
+name = "pbg-fenics"
+authors = ["Eran <agmon.eran@gmail.com>"]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[dependencies]
+python = "3.12.*"
+fenics-dolfinx = "*"
+mpich = "*"
+gmsh = "*"
+python-gmsh = "*"
+pip = "*"
+matplotlib = "*"
+
+[pypi-dependencies]
+process-bigraph = { git = "https://github.com/vivarium-collective/process-bigraph.git", branch = "main" }
+bigraph-schema = "*"
+bigraph-viz2 = "*"
+vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-workbench.git", branch = "main" }
+plotly = "*"
+pytest = "*"
+pbg-fenics = { path = ".", editable = true }
+pbg-superpowers = { path = "/Users/eranagmon/code/pbg-superpowers--viva-expert-investigation", editable = true }

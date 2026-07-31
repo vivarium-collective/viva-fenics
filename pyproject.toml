@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pbg-fenics"
+version = "0.1.0"
+description = "Process-bigraph wrapper for FEniCSx (dolfinx)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["bigraph-schema>=0.0.60", "process-bigraph>=0.0.66"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pbg_fenics"]

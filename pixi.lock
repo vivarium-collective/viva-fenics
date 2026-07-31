@@ -3819,14 +3819,6 @@ packages:
   - pint ; extra == 'dev'
   - unum ; extra == 'dev'
   requires_python: '>=3.11'
-- pypi: ./
-  name: viva-fenics
-  version: 0.1.0
-  sha256: 87495d0ca236829507690a80ab16c50ab21c19bc204b888511ad8f869868a2fd
-  requires_dist:
-  - bigraph-schema>=0.0.60
-  - process-bigraph>=0.0.66
-  requires_python: '>=3.12'
 - pypi: /Users/eranagmon/code/pbg-superpowers--viva-expert-investigation
   name: pbg-superpowers
   version: 0.17.0
@@ -5010,6 +5002,14 @@ packages:
   purls: []
   size: 20413331
   timestamp: 1784251090243
+- pypi: ./
+  name: viva-fenics
+  version: 0.1.0
+  sha256: f5d42143c283ab13acd767dd1e64912124e922560e1ddcc5f68e570d2375f4f6
+  requires_dist:
+  - bigraph-schema>=0.0.60
+  - process-bigraph>=0.0.66
+  requires_python: '>=3.12'
 - pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#ade05750b14d931034ab195cb29c18ae3b17abe6
   name: vivarium-workbench
   version: 0.3.28

@@ -80,7 +80,14 @@ class DiffusionProcess(Process):
         return {"source": "array[float]", "solution": "array[float]"}
 
     def outputs(self):
-        return {"solution": "array[float]", "integral": "float"}
+        # "integral" is a sensor reading (the FEM integral of the CURRENT
+        # absolute field, recomputed fresh every tick in update()), not a
+        # delta -- unlike "solution" it must REPLACE the store, not add to
+        # it, or a multi-tick Composite run would accumulate
+        # sum_i integral_i (~= N x mass) instead of reporting the true
+        # per-tick reading. `overwrite[float]` gives it apply=replace
+        # semantics (same convention as e.g. pbg_idynomics2's "time" output).
+        return {"solution": "array[float]", "integral": "overwrite[float]"}
 
     def initial_state(self):
         self._ensure_mesh()

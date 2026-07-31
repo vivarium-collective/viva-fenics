@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from viva_superpowers.composite_generator import composite_generator
 
-from pbg_fenics import fem
-from pbg_fenics.processes.diffusion import _gaussian_bump
+from viva_fenics import fem
+from viva_fenics.processes.diffusion import _gaussian_bump
 
 
 @composite_generator(

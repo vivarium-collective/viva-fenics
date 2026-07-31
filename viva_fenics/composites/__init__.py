@@ -1,4 +1,4 @@
-"""pbg-fenics composite generators (imported for @composite_generator side effects)."""
+"""viva-fenics composite generators (imported for @composite_generator side effects)."""
 
 from . import poisson  # noqa: F401
 from . import diffusion  # noqa: F401

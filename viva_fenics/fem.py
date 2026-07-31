@@ -81,7 +81,7 @@ def solve_poisson(domain, V, source_fn, bc_fn):
     a = ufl.dot(ufl.grad(u), ufl.grad(v)) * ufl.dx
     L = f * v * ufl.dx
 
-    prefix = f"pbg_fenics_poisson_{next(_prefix_counter)}_"
+    prefix = f"viva_fenics_poisson_{next(_prefix_counter)}_"
     problem = LinearProblem(
         a, L, bcs=[bc],
         petsc_options_prefix=prefix,
@@ -124,7 +124,7 @@ def diffusion_step(domain, V, u_n_array, source_array, dt, D):
     a = (u * v + dt * D * ufl.dot(ufl.grad(u), ufl.grad(v))) * ufl.dx
     L = (u_n + dt * source) * v * ufl.dx
 
-    prefix = f"pbg_fenics_diff_{next(_prefix_counter)}_"
+    prefix = f"viva_fenics_diff_{next(_prefix_counter)}_"
     problem = LinearProblem(
         a, L, bcs=[],
         petsc_options_prefix=prefix,

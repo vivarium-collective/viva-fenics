@@ -3820,7 +3820,7 @@ packages:
   - unum ; extra == 'dev'
   requires_python: '>=3.11'
 - pypi: ./
-  name: pbg-fenics
+  name: viva-fenics
   version: 0.1.0
   sha256: 87495d0ca236829507690a80ab16c50ab21c19bc204b888511ad8f869868a2fd
   requires_dist:

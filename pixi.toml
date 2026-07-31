@@ -1,5 +1,5 @@
 [workspace]
-name = "pbg-fenics"
+name = "viva-fenics"
 authors = ["Eran <agmon.eran@gmail.com>"]
 channels = ["conda-forge"]
 platforms = ["osx-arm64"]
@@ -21,5 +21,5 @@ bigraph-viz2 = "*"
 vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-workbench.git", branch = "main" }
 plotly = "*"
 pytest = "*"
-pbg-fenics = { path = ".", editable = true }
+viva-fenics = { path = ".", editable = true }
 pbg-superpowers = { path = "/Users/eranagmon/code/pbg-superpowers--viva-expert-investigation", editable = true }

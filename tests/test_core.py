@@ -1,6 +1,6 @@
 from process_bigraph import Composite
 
-from pbg_fenics.core import build_core
+from viva_fenics.core import build_core
 
 
 def test_build_core_resolves_local_processes():

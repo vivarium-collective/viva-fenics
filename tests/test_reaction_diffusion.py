@@ -1,9 +1,9 @@
 import numpy as np
 from process_bigraph import Composite, gather_emitter_results
 
-from pbg_fenics.core import build_core
-from pbg_fenics.composites.reaction_diffusion import reaction_diffusion
-from pbg_fenics.processes.reaction import LogisticReactionProcess
+from viva_fenics.core import build_core
+from viva_fenics.composites.reaction_diffusion import reaction_diffusion
+from viva_fenics.processes.reaction import LogisticReactionProcess
 
 
 def _integral_growth(r, resolution=24, D=0.05, dt=0.01, run_time=0.2):

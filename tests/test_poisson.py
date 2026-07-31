@@ -1,6 +1,6 @@
 from process_bigraph import Process, Step, allocate_core
 
-from pbg_fenics.processes.poisson import PoissonSolverStep
+from viva_fenics.processes.poisson import PoissonSolverStep
 
 
 def test_poisson_step_update():

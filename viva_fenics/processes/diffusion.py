@@ -1,5 +1,5 @@
 """DiffusionProcess: a process-bigraph Process wrapping the FEniCSx
-transient (backward-Euler) heat/diffusion equation in pbg_fenics.fem.
+transient (backward-Euler) heat/diffusion equation in viva_fenics.fem.
 
 This is a Process (not a Step) because it is time-varying and stateful --
 each call to update() advances the diffusion field by `interval`, carrying
@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 from process_bigraph import Process
 
-from pbg_fenics import fem
+from viva_fenics import fem
 
 # No Dirichlet boundary condition is applied in fem.diffusion_step, so the
 # domain boundary is natural Neumann (zero-flux): heat/mass cannot leave

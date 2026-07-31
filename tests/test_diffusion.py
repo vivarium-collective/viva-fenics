@@ -1,5 +1,5 @@
 from process_bigraph import allocate_core
-from pbg_fenics.processes.diffusion import DiffusionProcess
+from viva_fenics.processes.diffusion import DiffusionProcess
 import numpy as np
 
 
@@ -31,10 +31,10 @@ def test_diffusion_composite_integral_does_not_accumulate():
     """
     from process_bigraph import Composite, allocate_core, gather_emitter_results
 
-    from pbg_fenics.composites.diffusion import transient_diffusion
+    from viva_fenics.composites.diffusion import transient_diffusion
 
     core = allocate_core()
-    # pbg-fenics is an editable (hatchling) install, so importlib.metadata's
+    # viva-fenics is an editable (hatchling) install, so importlib.metadata's
     # packages_distributions() has no entry for it and allocate_core()'s
     # discovery walk skips it entirely -- a pre-existing, repo-wide gap
     # (PoissonSolverStep has it too), unrelated to this fix and out of

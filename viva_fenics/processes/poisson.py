@@ -1,5 +1,5 @@
 """PoissonSolverStep: a process-bigraph Step wrapping the FEniCSx MMS Poisson
-solve in pbg_fenics.fem.
+solve in viva_fenics.fem.
 
 This is a Step (not a Process) because it is stateless and has no
 time-varying inputs -- the Port-Design "no inputs => Step" rule. Given only
@@ -10,7 +10,7 @@ plus its L2 error against the known analytic solution.
 
 from process_bigraph import Step
 
-from pbg_fenics import fem
+from viva_fenics import fem
 
 # Manufactured solution for -div(grad(u)) = -6 (source_value default):
 #   u_exact(x, y) = 1 + x**2 + 2*y**2

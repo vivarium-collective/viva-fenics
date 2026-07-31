@@ -1,5 +1,5 @@
 import numpy as np
-from pbg_fenics import fem
+from viva_fenics import fem
 
 
 def test_poisson_mms_converges():

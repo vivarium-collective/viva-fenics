@@ -1,4 +1,4 @@
-"""Custom bigraph-schema types for pbg-fenics.
+"""Custom bigraph-schema types for viva-fenics.
 
 `fem_field` represents nodal values of a dolfinx Function (e.g. a Poisson
 solution) as a flat float64 array, for use as a process-bigraph port type.
@@ -13,10 +13,10 @@ FENICS_TYPES = {
 
 
 def register_types(core):
-    """Register pbg-fenics bigraph-schema types into a process-bigraph core.
+    """Register viva-fenics bigraph-schema types into a process-bigraph core.
 
     Registered defensively (skipped if already present) so importing
-    pbg-fenics into another workspace does not clash.
+    viva-fenics into another workspace does not clash.
     """
     try:
         existing = set(core.types())

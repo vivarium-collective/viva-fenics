@@ -1,7 +1,7 @@
 import numpy as np
 from process_bigraph import Composite, allocate_core, gather_emitter_results
 
-from pbg_fenics.processes.poisson import PoissonSolverStep
+from viva_fenics.processes.poisson import PoissonSolverStep
 
 
 def test_convergence_rate():
@@ -20,8 +20,8 @@ def test_mesh_convergence_generator_registered():
 
 
 def test_mesh_convergence_builds():
-    from pbg_fenics.core import build_core
-    from pbg_fenics.composites.convergence import mesh_convergence
+    from viva_fenics.core import build_core
+    from viva_fenics.composites.convergence import mesh_convergence
 
     core = build_core()
     doc = mesh_convergence(core, resolution=8)

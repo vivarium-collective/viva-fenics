@@ -6,7 +6,7 @@ a "solution" field and writes a "source" field. Coupling to
 ``DiffusionProcess`` (which reads "source" as its own input) happens purely
 through the bigraph document wiring both processes to the same
 ``stores.source`` / ``stores.solution`` paths (see
-``pbg_fenics.composites.reaction_diffusion``), not by either process calling
+``viva_fenics.composites.reaction_diffusion``), not by either process calling
 into the other. That is the composability property this process exists to
 demonstrate.
 """

@@ -1,4 +1,4 @@
-"""Smoke tests for pbg_fenics.viz -- shape/content checks on the returned
+"""Smoke tests for viva_fenics.viz -- shape/content checks on the returned
 HTML fragments, not visual assertions. Real rendering is verified by hand
 (see task-6-report.md) since headless browser rendering isn't in scope here.
 """
@@ -6,7 +6,7 @@ HTML fragments, not visual assertions. Real rendering is verified by hand
 import numpy as np
 import pytest
 
-from pbg_fenics import viz
+from viva_fenics import viz
 
 
 def test_field_heatmap_html():

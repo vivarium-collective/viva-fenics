@@ -2,7 +2,7 @@
 
 The dashboard (and this repo's own composite generators) run each composite
 in a subprocess/venv that calls this ``build_core()`` to obtain a core with
-pbg-fenics's own types and process/step classes registered. Editable
+viva-fenics's own types and process/step classes registered. Editable
 installs are invisible to ``process_bigraph.allocate_core()``'s
 distribution-keyed auto-discovery, so ``local:PoissonSolverStep`` /
 ``local:DiffusionProcess`` otherwise fail to resolve with "no link found at
@@ -30,14 +30,14 @@ _PROCESSES = (
 
 
 def register_processes(core):
-    """Register pbg-fenics's own Process/Step classes into ``core``."""
+    """Register viva-fenics's own Process/Step classes into ``core``."""
     for name, cls in _PROCESSES:
         core.register_link(name, cls)
     return core
 
 
 def build_core(core=None):
-    """Return a core with pbg-fenics's types and processes registered.
+    """Return a core with viva-fenics's types and processes registered.
 
     Allocates a fresh core via ``allocate_core()`` when ``core`` is not
     given.

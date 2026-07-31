@@ -1,0 +1,152 @@
+schema_version: 3
+name: reaction-diffusion
+title: "Reaction-diffusion: bigraph coupling (headline)"
+created: '2026-07-31'
+status: planned
+phase: Build
+
+question: |
+  Do two independently-authored processes -- `DiffusionProcess` (no
+  knowledge of reactions) and `LogisticReactionProcess` (no knowledge of
+  FEM/diffusion) -- produce genuine Fisher-KPP reaction-diffusion dynamics
+  when wired to the same bigraph stores, with neither process calling into
+  the other?
+hypothesis: |
+  Coupling is entirely a property of the document wiring (shared
+  `stores.solution` / `stores.source` paths), not of either process's
+  implementation: with the reaction term active (r=2.0), the field's total
+  mass should grow dramatically faster than a near-zero-reaction control
+  (r=1e-9, identical wiring) run for the same duration, while logistic
+  saturation keeps the field bounded near the carrying capacity K.
+objective: |
+  Run the `reaction_diffusion` composite (DiffusionProcess ⊕
+  LogisticReactionProcess) and confirm (a) mass grows far faster than a
+  near-zero-reaction control under identical wiring/duration -- isolating
+  the reaction term's causal contribution from solver noise -- and (b) the
+  field stays bounded near the logistic carrying capacity K rather than
+  blowing up, which would indicate the `source` store were composing
+  additively instead of being overwritten each tick.
+description: |
+  This is the investigation's composability showcase. `DiffusionProcess`
+  (Task 3) and `LogisticReactionProcess` (Task 4) are coupled PURELY through
+  shared stores: `stores.solution` is read+written by `DiffusionProcess` and
+  read by `LogisticReactionProcess`; `stores.source` is written by
+  `LogisticReactionProcess` (`overwrite[array[float]]` -- a fresh per-tick
+  rate, not an accumulated delta) and read by `DiffusionProcess`, which
+  multiplies it by dt internally. Swap `LogisticReactionProcess` for any
+  other process that reads "solution" and writes "source" and
+  `DiffusionProcess` is none the wiser -- that substitutability is the
+  claim this study exists to demonstrate, du/dt = D*laplacian(u) +
+  r*u*(1-u/K) emerging from composition, not from either process
+  implementing Fisher-KPP itself.
+
+baseline:
+- name: reaction-diffusion-baseline
+  composite: viva_fenics.composites.reaction_diffusion.reaction_diffusion
+  params:
+    resolution: 24
+    D: 0.05
+    r: 2.0
+    dt: 0.01
+
+variants:
+- name: r-low
+  base_composite: reaction-diffusion-baseline
+  parameter_overrides:
+    r: 0.5
+- name: r-high
+  base_composite: reaction-diffusion-baseline
+  parameter_overrides:
+    r: 4.0
+
+expected_behavior:
+- name: mass-grows-via-coupling
+  en: "Mass growth with the reaction coupled in (r=2.0) is at least 5x growth under a near-zero-reaction control (r=1e-9), same wiring/duration."
+  observable: integral_growth
+  condition: growth(r=2.0) >= 5x growth(r=1e-9), same wiring/duration
+  rationale: >-
+    A bare "mass increases" check is not discriminating -- solver/quadrature
+    noise alone moves the integral by a small amount even with the reaction
+    effectively disconnected (r~=0). Comparing against a near-zero-reaction
+    control with IDENTICAL wiring isolates the reaction term's causal
+    contribution, proving the growth comes from the composed coupling.
+  measure:
+    kind: derived_scalar
+    field: growth_ratio
+  expect:
+    op: ">="
+    value: 5.0
+- name: field-bounded-by-k
+  en: "The field's maximum stays below 1.2 (K=1.0 plus margin) throughout the run."
+  observable: max(solution)
+  condition: max(solution) < 1.2 over the run (K=1.0 default carrying capacity)
+  rationale: >-
+    Logistic saturation (`r*u*(1-u/K)`) should cap growth near K regardless
+    of run length. An unbounded field would indicate `stores.source` is
+    composing additively across ticks instead of being overwritten each
+    tick (the accumulate-vs-overwrite bug class this wiring is designed to
+    avoid).
+  measure:
+    kind: derived_scalar
+    field: max_field
+  expect:
+    op: "<"
+    value: 1.2
+
+behavior_tests:
+- name: mass-grows-via-coupling
+  classification: primary
+  description: |
+    (last_integral - first_integral) for the r=2.0 run must be at least 5x
+    the same quantity for a same-duration, same-wiring r=1e-9 control.
+  measure:
+    kind: derived_scalar
+    field: growth_ratio
+  pass_if:
+    op: ">="
+    value: 5.0
+    provenance:
+      kind: calibration
+      note: >-
+        5x is a clear-separation band between genuine reaction-driven growth
+        and residual solver/quadrature noise, calibrated against the r~=0
+        control (observed ratio ~2.6e9x at r=2.0 vs r=1e-9, D=0.05,
+        resolution=24, run_time=0.5).
+  requires_simulation: reaction-diffusion-baseline
+- name: field-bounded-by-k
+  classification: primary
+  description: |
+    max(solution) across every recorded tick of the r=2.0 run must stay
+    below 1.2 (K=1.0 plus margin).
+  measure:
+    kind: derived_scalar
+    field: max_field
+  pass_if:
+    op: "<"
+    value: 1.2
+    provenance:
+      kind: theory
+      note: >-
+        Logistic saturation caps u at K=1.0 in the continuous limit
+        regardless of run length; 1.2 leaves headroom for discretization
+        overshoot while still catching an accumulate-vs-overwrite
+        regression, which blows well past this bound.
+  requires_simulation: reaction-diffusion-baseline
+
+parent_studies:
+- study: transient-diffusion
+  condition: tests-passed
+
+canonical_runs:
+- name: default
+  script: studies/reaction-diffusion/sims/run.py
+  args: []
+  label: "Fisher-KPP coupling (resolution=24, D=0.05, r=2.0 vs r=1e-9 control)"
+  default: true
+
+visualizations:
+- name: wavefront-animation
+  chart: viz/reaction_diffusion_animation.html
+  render: "python sims/run.py"
+
+conclusion: null

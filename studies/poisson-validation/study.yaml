@@ -1,0 +1,90 @@
+schema_version: 3
+name: poisson-validation
+title: "Poisson validation: MMS correctness"
+created: '2026-07-31'
+status: planned
+phase: Build
+
+question: |
+  Does the dolfinx-backed `PoissonSolverStep` reproduce the exact solution of
+  a manufactured steady Poisson problem to numerical precision?
+hypothesis: |
+  Degree-2 Lagrange elements exactly represent the quadratic manufactured
+  solution used here (Galerkin orthogonality), so the L2 error against the
+  analytic solution should sit at floating-point round-off, not merely
+  "small".
+objective: |
+  Solve the steady Poisson equation -div(grad(u)) = f on the unit square with
+  a manufactured (known-exact) quadratic solution, and verify the FEM
+  solution matches the exact solution to within numerical tolerance. This is
+  the correctness baseline every other study in the investigation builds on.
+description: |
+  Wraps a single `PoissonSolverStep` (Task 2) in the `poisson_baseline`
+  composite generator. The Step is stateless -- given only mesh resolution +
+  polynomial degree, it builds the mesh, solves -Laplacian(u) = -6 subject to
+  the manufactured solution's Dirichlet boundary values, and reports both the
+  nodal solution and its L2 error against the exact solution
+  u = 1 + x^2 + 2*y^2.
+
+baseline:
+- name: poisson-baseline
+  composite: viva_fenics.composites.poisson.poisson_baseline
+  params:
+    resolution: 32
+    degree: 2
+
+variants: []
+
+expected_behavior:
+- name: l2-error-within-tolerance
+  en: "The FEM solution's L2 error against the manufactured exact solution is below 1e-10."
+  observable: l2_error
+  condition: l2_error < 1.0e-10
+  rationale: >-
+    Degree-2 Lagrange elements exactly represent the quadratic manufactured
+    solution (Galerkin orthogonality), so l2_error should sit at
+    floating-point round-off (~1e-13), confirming the dolfinx bridge
+    reproduces the analytic MMS result rather than merely approximating it.
+  measure:
+    kind: derived_scalar
+    field: l2_error
+  expect:
+    op: "<"
+    value: 1.0e-10
+
+behavior_tests:
+- name: l2-error-within-tolerance
+  classification: primary
+  description: |
+    The L2 norm of (numeric solution - exact manufactured solution) must be
+    within numerical tolerance of zero.
+  measure:
+    kind: derived_scalar
+    field: l2_error
+  pass_if:
+    op: "<"
+    value: 1.0e-10
+    provenance:
+      kind: theory
+      note: >-
+        A quadratic manufactured solution lies exactly in the degree-2
+        Lagrange trial space, so the discretization error is zero up to
+        solver/quadrature round-off; 1e-10 is a generous ceiling above that
+        floor (observed ~2.8e-13).
+  requires_simulation: poisson-baseline
+
+parent_studies: []
+
+canonical_runs:
+- name: default
+  script: studies/poisson-validation/sims/run.py
+  args: []
+  label: "Poisson MMS validation (resolution=32, degree=2)"
+  default: true
+
+visualizations:
+- name: solution-heatmap
+  chart: viz/solution_heatmap.html
+  render: "python sims/run.py"
+
+conclusion: null

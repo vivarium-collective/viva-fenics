@@ -4,14 +4,15 @@ created: "2026-07-31"
 plugin_version: 0.17.0
 package_path: viva_fenics
 
-# Directory layout. New workspaces group their research directories under a
-# tidy `workspace/` subtree (the dirs below); the hidden `.pbg/` machine state
-# stays at the root like `.git/`. Tooling (dashboard, lint, skills) resolves
-# these via the shared WorkspacePaths resolver. Any key you remove falls back
-# to its flat top-level default — so you can move things back if you prefer.
+# Directory layout. `studies:`/`investigations:` stay at the classic
+# top-level (`studies/<slug>/study.yaml`, `investigations/<slug>/investigation.yaml`)
+# -- this is what the dashboard list-scanner expects and matches every other
+# workspace (e.g. pbg-autopoiesis). Other research dirs are grouped under a
+# tidy `workspace/` subtree; the hidden `.pbg/` machine state stays at the
+# root like `.git/`. Tooling (dashboard, lint, skills) resolves these via the
+# shared WorkspacePaths resolver. Any key you remove falls back to its flat
+# top-level default — so you can move things back if you prefer.
 layout:
-  studies: workspace/studies
-  investigations: workspace/investigations
   composites: workspace/composites
   references: workspace/references
   datasets: workspace/datasets

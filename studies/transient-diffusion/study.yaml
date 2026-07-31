@@ -1,0 +1,120 @@
+schema_version: 3
+name: transient-diffusion
+title: "Transient diffusion: time-stepping"
+created: '2026-07-31'
+status: planned
+phase: Build
+
+question: |
+  Does a time-stepped `DiffusionProcess` (backward-Euler, dolfinx-backed)
+  conserve mass under a no-flux boundary while smoothing/decaying an initial
+  field, when driven through process-bigraph's own Composite tick loop
+  (not called directly)?
+hypothesis: |
+  With no Dirichlet boundary condition (natural Neumann / zero-flux), the
+  FEM integral of the field should stay flat tick over tick while the
+  gaussian bump's peak monotonically decays as it spreads.
+objective: |
+  Run the `transient_diffusion` composite for several ticks and verify (a)
+  the field's peak decays as diffusion spreads the initial gaussian bump and
+  (b) the FEM-integral mass stays conserved (no-flux boundary), exercising
+  the additive-delta store convention through a real Composite.run(), not
+  just DiffusionProcess.update() in isolation.
+description: |
+  Wires a single `DiffusionProcess` (Task 3) to shared `stores.solution`/
+  `stores.source` and a `RAMEmitter`, seeded with a nodal gaussian bump. The
+  process returns a DELTA each tick (new field - previous field) so the
+  shared `array[float]` store composes additively -- the same convention
+  `reaction-diffusion` (this investigation's headline study) relies on to
+  couple a second process into `stores.source`.
+
+baseline:
+- name: diffusion-baseline
+  composite: viva_fenics.composites.diffusion.transient_diffusion
+  params:
+    resolution: 32
+    D: 0.1
+    dt: 0.01
+
+variants: []
+
+expected_behavior:
+- name: mass-conserved
+  en: "The FEM integral of the field drifts by less than 5% between the first and last recorded tick."
+  observable: field_integral
+  condition: relative drift in field_integral over the run < 5%
+  rationale: >-
+    No Dirichlet BC is applied (natural Neumann/zero-flux boundary), so mass
+    can redistribute within the domain but not leave it; the FEM integral of
+    the field should stay flat tick over tick up to solver noise.
+  measure:
+    kind: derived_scalar
+    field: mass_drift_fraction
+  expect:
+    op: "<"
+    value: 0.05
+- name: peak-decays
+  en: "The field's maximum at the final recorded tick is strictly less than at the first recorded tick."
+  observable: max(solution)
+  condition: final peak < initial peak
+  rationale: >-
+    Diffusion spreads a concentrated gaussian bump over time; the field's
+    maximum should monotonically decrease as mass redistributes toward a
+    flatter profile.
+  measure:
+    kind: derived_scalar
+    field: peak_ratio
+  expect:
+    op: "<"
+    value: 1.0
+
+behavior_tests:
+- name: mass-conserved
+  classification: primary
+  description: |
+    The FEM integral of the field (a mass-bookkeeping sensor reading,
+    recomputed fresh every tick) must not drift by more than 5% between the
+    first and last recorded tick.
+  measure:
+    kind: derived_scalar
+    field: mass_drift_fraction
+  pass_if:
+    op: "<"
+    value: 0.05
+    provenance:
+      kind: theory
+      note: >-
+        Zero-flux (natural Neumann) boundary conditions conserve the domain
+        integral exactly in the continuous problem; 5% is a numerical-noise
+        margin for the discrete backward-Euler solve.
+  requires_simulation: diffusion-baseline
+- name: peak-decays
+  classification: supporting
+  description: |
+    max(solution) at the final recorded tick must be strictly less than
+    max(solution) at the first recorded tick.
+  measure:
+    kind: derived_scalar
+    field: peak_ratio
+  pass_if:
+    op: "<"
+    value: 1.0
+  requires_simulation: diffusion-baseline
+
+parent_studies:
+- study: poisson-validation
+  condition: tests-passed
+
+canonical_runs:
+- name: default
+  script: studies/transient-diffusion/sims/run.py
+  args: []
+  label: "transient diffusion (resolution=32, D=0.1, dt=0.01, 4 ticks)"
+  default: true
+
+visualizations:
+- name: field-animation
+  chart: viz/diffusion_animation.html
+  render: "python sims/run.py"
+
+conclusion: null

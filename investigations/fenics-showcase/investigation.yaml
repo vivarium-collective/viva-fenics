@@ -1,0 +1,119 @@
+schema_version: 2
+name: fenics-showcase
+title: "FEniCS showcase: FEM solvers as composable pbg processes"
+created: '2026-07-31'
+status: planning
+
+question: |
+  Can modern FEniCSx be wrapped as composable pbg processes that reproduce
+  canonical FEM results and enable bigraph coupling?
+
+hypothesis: |
+  Wrapping dolfinx's Poisson, transient-diffusion, and logistic-reaction
+  solvers as process-bigraph Steps/Processes preserves their numerical
+  fidelity (manufactured-solution validation, O(h^2) mesh convergence,
+  mass-conserving time-stepping) AND enables genuine bigraph composition:
+  Fisher-KPP reaction-diffusion dynamics should emerge purely from two
+  independently-authored processes (DiffusionProcess, LogisticReactionProcess)
+  sharing bigraph stores, with neither process aware of the other.
+
+description: |
+  Four studies build up from validation to composition. `poisson-validation`
+  and `mesh-convergence` establish that the dolfinx bridge reproduces
+  textbook FEM numerics (manufactured-solution correctness, O(h^2) P1
+  convergence). `transient-diffusion` extends the bridge to time-stepped
+  Processes and checks mass conservation under backward-Euler integration.
+  `reaction-diffusion` is the headline: it wires `DiffusionProcess` and
+  `LogisticReactionProcess` into the same `stores.solution` / `stores.source`
+  paths and shows Fisher-KPP-like mass growth emerges from that wiring alone
+  -- the composability property the whole investigation exists to
+  demonstrate. Runs are authored here (Task 7); execution into `runs.db`
+  plus behavior-test evaluation happens in Task 8.
+
+studies:
+- poisson-validation
+- mesh-convergence
+- transient-diffusion
+- reaction-diffusion
+
+executive:
+  what_is_this: |
+    A showcase investigation proving that a real external FEM solver
+    (FEniCSx/dolfinx, not a mock or reimplementation) can be wrapped as
+    process-bigraph Steps/Processes and composed like any other pbg model.
+    Two validation studies (`poisson-validation`, `mesh-convergence`) confirm
+    numerical fidelity against known analytic/theoretical results; two
+    dynamics studies (`transient-diffusion`, `reaction-diffusion`) extend the
+    bridge to time-stepping and cross-process coupling.
+  verdict: |
+    Authored and lint-clean: 4 studies, each with a real `@composite_generator`
+    baseline, a `sims/run.py` canonical runner, and an interactive viz.
+    Standalone execution of every runner (this task) reproduces the expected
+    numerics: l2_error ~2.8e-13 (poisson-validation, tol 1e-10), observed
+    convergence rate ~2.00 (mesh-convergence, P1 -> O(h^2)), mass conserved
+    with a decaying peak (transient-diffusion), and reaction-driven mass
+    growth ~2.6e9x the near-zero-reaction control while the field stays
+    bounded near K=1.0 (reaction-diffusion).
+  verdict_status: in-progress
+  verdict_detail: |
+    Task 7 scope: author the investigation + 4 studies + runners and get them
+    lint-clean and individually executable (done -- see each study's printed
+    PASS/FAIL line above). Task 8 scope (not yet done): drive these same
+    runners through `/viva-study run-script` so results land in each study's
+    tracked `runs.db` and the dashboard's Tests tab reflects the behavior
+    tests declared below.
+  decisions_needed: []
+
+scientific_argument:
+  main_claim: |
+    A real dolfinx bridge, wrapped as ordinary process-bigraph Steps and
+    Processes, reproduces canonical FEM validation results (MMS correctness,
+    O(h^2) P1 convergence, mass-conserving transient diffusion) and, when two
+    independently-authored processes are wired to the same bigraph stores,
+    produces genuine Fisher-KPP coupling -- without either process containing
+    any knowledge of the other.
+  evidence_for:
+  - "poisson-validation: l2_error ~2.8e-13 against a quadratic manufactured
+    solution with degree-2 Lagrange elements (Galerkin-exact), well inside
+    the 1e-10 tolerance."
+  - "mesh-convergence: observed P1 convergence rate ~2.00 across
+    resolution=[8,16,32] on a superconvergence-resistant (crossed-diagonal)
+    mesh, matching O(h^2) theory."
+  - "transient-diffusion: the gaussian bump's peak decays under backward-Euler
+    diffusion while the FEM-integral mass stays flat (Neumann/no-flux
+    boundary), confirming the time-stepped Process wrapper conserves mass."
+  - "reaction-diffusion: mass growth with LogisticReactionProcess coupled in
+    (r=2.0) is orders of magnitude larger than a near-zero-reaction control
+    (r=1e-9, identical wiring) run for the same duration -- the growth is
+    attributable to the composed reaction term, not solver noise -- while the
+    field stays bounded near the logistic carrying capacity K=1.0."
+  evidence_against:
+  - "All four studies use a single fixed random-free deterministic setup
+    (unit-square mesh, one resolution/degree/parameter point per study
+    beyond the declared sweeps); broader parameter robustness beyond the
+    resolution/rate sweeps in mesh-convergence and reaction-diffusion is
+    untested."
+  - "Behavior tests are authored (Task 7) but not yet run through the
+    dashboard's Tests tab against a tracked runs.db (Task 8), so the PASS/FAIL
+    verdicts above come from the runner scripts' own printed checks, not the
+    dashboard's evaluator."
+  key_figures: []
+  caveats:
+  - "The coupling composability claim is demonstrated for one process pair
+    (DiffusionProcess / LogisticReactionProcess); it is not yet exercised
+    against a third, unrelated process to further stress-test the claim that
+    the wiring pattern generalizes."
+
+acceptance_criteria:
+- study: poisson-validation
+  behavior: l2-error-within-tolerance
+- study: mesh-convergence
+  behavior: convergence-rate-matches-order
+- study: transient-diffusion
+  behavior: mass-conserved
+- study: transient-diffusion
+  behavior: peak-decays
+- study: reaction-diffusion
+  behavior: mass-grows-via-coupling
+- study: reaction-diffusion
+  behavior: field-bounded-by-k

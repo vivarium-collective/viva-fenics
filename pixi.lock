@@ -5005,10 +5005,13 @@ packages:
 - pypi: ./
   name: viva-fenics
   version: 0.1.0
-  sha256: f5d42143c283ab13acd767dd1e64912124e922560e1ddcc5f68e570d2375f4f6
+  sha256: d644d1d24bc74c4b375875d617fb608f0a126c18aa3f37c3caf8804f5237aa76
   requires_dist:
   - bigraph-schema>=0.0.60
   - process-bigraph>=0.0.66
+  - pyyaml>=6.0
+  - jsonschema[format-nongpl]>=4.21
+  - jinja2>=3.1
   requires_python: '>=3.12'
 - pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#ade05750b14d931034ab195cb29c18ae3b17abe6
   name: vivarium-workbench

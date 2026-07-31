@@ -20,6 +20,7 @@ scratch/*.png
 investigations/*/runs.db
 investigations/*/viz/
 investigations/*/.run.lock
+studies/*/runs.db*
 workspace/reports/assets/*
 !workspace/reports/assets/.keep
 .superpowers/brainstorm/

@@ -1,4 +1,4 @@
-schema_version: 3
+schema_version: 4
 name: mesh-convergence
 title: "Mesh convergence: FEM rigor"
 created: '2026-07-31'
@@ -86,9 +86,15 @@ behavior_tests:
         threshold.
   requires_simulation: resolution-8
 
-parent_studies:
-- study: poisson-validation
-  condition: tests-passed
+pipeline_gate:
+  prerequisites:
+  - study: poisson-validation
+    condition: tests-passed
+  enables: []
+  proceed_condition: |
+    No downstream studies in this investigation depend on mesh-convergence;
+    it stands alongside transient-diffusion as a standalone FEM-rigor check
+    on the poisson-validation baseline.
 
 canonical_runs:
 - name: default

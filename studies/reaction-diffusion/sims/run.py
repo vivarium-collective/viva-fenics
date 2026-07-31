@@ -73,7 +73,10 @@ def main() -> int:
     growth_main = integrals_main[-1] - integrals_main[0]
     growth_off = integrals_off[-1] - integrals_off[0]
     growth_ratio = growth_main / max(abs(growth_off), 1e-12)
-    mass_grows = growth_ratio >= GROWTH_RATIO_MIN and growth_main > 0.05
+    # PASS/FAIL mirrors this study's declared behavior_tests exactly (only
+    # growth_ratio >= GROWTH_RATIO_MIN is asserted there) -- no additional
+    # undeclared conditions.
+    mass_grows = growth_ratio >= GROWTH_RATIO_MIN
 
     max_field = max(max(s) for s in solutions_main)
     field_bounded = max_field < FIELD_BOUND

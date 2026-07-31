@@ -1,4 +1,4 @@
-schema_version: 3
+schema_version: 4
 name: transient-diffusion
 title: "Transient diffusion: time-stepping"
 created: '2026-07-31'
@@ -101,9 +101,16 @@ behavior_tests:
     value: 1.0
   requires_simulation: diffusion-baseline
 
-parent_studies:
-- study: poisson-validation
-  condition: tests-passed
+pipeline_gate:
+  prerequisites:
+  - study: poisson-validation
+    condition: tests-passed
+  enables:
+  - reaction-diffusion
+  proceed_condition: |
+    Mass conservation and peak decay both pass, confirming the time-stepped
+    DiffusionProcess wrapper is trustworthy before reaction-diffusion
+    couples a second process into its shared stores.
 
 canonical_runs:
 - name: default

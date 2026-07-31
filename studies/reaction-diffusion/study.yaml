@@ -1,4 +1,4 @@
-schema_version: 3
+schema_version: 4
 name: reaction-diffusion
 title: "Reaction-diffusion: bigraph coupling (headline)"
 created: '2026-07-31'
@@ -133,9 +133,15 @@ behavior_tests:
         regression, which blows well past this bound.
   requires_simulation: reaction-diffusion-baseline
 
-parent_studies:
-- study: transient-diffusion
-  condition: tests-passed
+pipeline_gate:
+  prerequisites:
+  - study: transient-diffusion
+    condition: tests-passed
+  enables: []
+  proceed_condition: |
+    No further studies in this investigation depend on reaction-diffusion --
+    it is the investigation's headline/terminal study, demonstrating the
+    composability claim the other three studies build up to.
 
 canonical_runs:
 - name: default

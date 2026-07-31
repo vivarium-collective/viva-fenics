@@ -1,4 +1,4 @@
-schema_version: 3
+schema_version: 4
 name: poisson-validation
 title: "Poisson validation: MMS correctness"
 created: '2026-07-31'
@@ -73,7 +73,16 @@ behavior_tests:
         floor (observed ~2.8e-13).
   requires_simulation: poisson-baseline
 
-parent_studies: []
+pipeline_gate:
+  prerequisites: []
+  enables:
+  - mesh-convergence
+  - transient-diffusion
+  proceed_condition: |
+    The MMS L2 error is within tolerance (l2-error-within-tolerance passes),
+    confirming the dolfinx bridge is numerically correct before building
+    the convergence sweep and the time-stepped diffusion studies on top of
+    it.
 
 canonical_runs:
 - name: default

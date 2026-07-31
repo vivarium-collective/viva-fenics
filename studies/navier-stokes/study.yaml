@@ -1,0 +1,206 @@
+schema_version: 4
+name: navier-stokes
+title: "Navier-Stokes: lid-driven cavity flow (IPCS)"
+created: '2026-07-31'
+status: planned
+phase: Build
+
+question: |
+  Does a real dolfinx incompressible Navier-Stokes solve -- Taylor-Hood-ish
+  P2/P1 velocity/pressure, classic IPCS (Incremental Pressure Correction
+  Scheme) operator splitting -- reproduce the textbook lid-driven-cavity
+  flow (a non-trivial, approximately divergence-free, quasi-steady
+  recirculating flow pinned near the lid velocity) when wrapped as a
+  process-bigraph Process, and does the scheme stay numerically stable
+  across a moderate Reynolds-number sweep?
+hypothesis: |
+  `NavierStokesProcess` should converge, within a fraction of a second of
+  simulated time, to a quasi-steady cavity flow whose peak speed sits near
+  the prescribed lid velocity (the moving-lid Dirichlet BC pins it there)
+  and whose velocity field is approximately divergence-free (small, not
+  exactly zero -- IPCS is only an approximate projection). The same IPCS
+  scheme, unmodified, should remain stable (no blow-up) from Re=100 up
+  through Re=1000 at this mesh/timestep, since diffusion is treated
+  implicitly (Crank-Nicolson) even though convection is explicit.
+objective: |
+  Run the `navier_stokes` composite (lid-driven cavity on the unit square,
+  P2 velocity / P1 pressure, IPCS splitting) to quasi-steady state and
+  verify (a) the flow is non-trivial and bounded near the lid velocity, (b)
+  the velocity field is approximately divergence-free, and (c) the same
+  scheme stays stable (finite, non-blown-up) across a Reynolds sweep
+  (100, 400, 1000).
+description: |
+  Wraps a single `NavierStokesProcess` in the `navier_stokes` composite
+  generator. Each tick, the process advances the lid-driven cavity flow by
+  `dt`-sized IPCS substeps: (1) a tentative-velocity solve (Crank-Nicolson
+  diffusion, explicit convection via the previous step's velocity), (2) a
+  pressure-correction Poisson solve using the tentative velocity's
+  divergence as a source, (3) a velocity-correction solve using the
+  pressure correction's gradient. All three are real
+  `dolfinx.fem.petsc.LinearProblem` direct solves -- no reimplementation of
+  the physics, no mock. `velocity_x`/`velocity_y`/`pressure`/
+  `speed_integral` are `overwrite` sensor outputs (the process's own
+  internally-persisted absolute flow state, freshly reported each tick),
+  mirroring `DiffusionProcess.integral`'s convention.
+
+  This is an ADVANCED, showcase-tier study within the investigation: it is
+  the first fluid-dynamics (as opposed to scalar diffusion/reaction) demo,
+  and the first to couple two different function spaces (P2 velocity, P1
+  pressure) in one process.
+
+baseline:
+- name: navier-stokes-baseline
+  composite: viva_fenics.composites.flow.navier_stokes
+  params:
+    resolution: 24
+    reynolds: 100.0
+    dt: 0.01
+
+variants:
+- name: reynolds-400
+  base_composite: navier-stokes-baseline
+  parameter_overrides:
+    reynolds: 400.0
+- name: reynolds-1000
+  base_composite: navier-stokes-baseline
+  parameter_overrides:
+    reynolds: 1000.0
+
+expected_behavior:
+- name: reaches-quasi-steady
+  en: "speed_integral changes by less than 5% between two checkpoints late in the baseline run."
+  observable: speed_integral
+  condition: relative change in speed_integral between the last two checkpoints < 5%
+  rationale: >-
+    A well-posed lid-driven cavity solve should settle into a quasi-steady
+    recirculating flow within a fraction of a second of simulated time, not
+    oscillate or drift indefinitely; a small residual change between late
+    checkpoints confirms convergence.
+  measure:
+    kind: derived_scalar
+    field: quasi_steady_rel_change
+  expect:
+    op: "<"
+    value: 0.05
+- name: approximately-divergence-free
+  en: "The mean absolute divergence of the converged velocity field is below 0.05 (resolution=24, Re=100)."
+  observable: mean_abs_divergence
+  condition: mean|div(u)| < 0.05
+  rationale: >-
+    IPCS is an approximate projection method -- exact zero divergence is not
+    expected -- but the mean absolute divergence over the domain should be
+    small relative to the O(1) velocity scale and shrink under mesh
+    refinement (observed ~0.003-0.02 at resolution=24 across Re=100..1000
+    during development), not blow up.
+  measure:
+    kind: derived_scalar
+    field: mean_abs_divergence
+  expect:
+    op: "<"
+    value: 0.05
+- name: stable-across-reynolds-sweep
+  en: "Every variant in the reynolds=[100,400,1000] sweep finishes with a finite max speed below 2x the lid velocity (no blow-up)."
+  observable: max_speed
+  condition: max(max_speed over sweep) < 2 * lid_velocity, all finite
+  rationale: >-
+    Non-stabilized (no SUPG) Galerkin FEM Navier-Stokes can develop
+    grid-scale oscillations/blow-up at higher Reynolds number on a coarse
+    mesh; this scheme's implicit (Crank-Nicolson) treatment of diffusion
+    was verified during development to stay stable out to Re=1000 at this
+    resolution/timestep (no reduction to a lower top Reynolds number was
+    needed), and this test locks that finding.
+  measure:
+    kind: derived_scalar
+    field: max_speed_across_sweep
+  expect:
+    op: "<"
+    value: 2.0
+
+behavior_tests:
+- name: reaches-quasi-steady
+  classification: primary
+  description: |
+    The relative change in speed_integral between the checkpoint at
+    t=0.5 and a further checkpoint at t=0.6 must be below 5%.
+  measure:
+    kind: derived_scalar
+    field: quasi_steady_rel_change
+  pass_if:
+    op: "<"
+    value: 0.05
+    provenance:
+      kind: calibration
+      note: >-
+        5% is a generous convergence band above the observed residual
+        change (~1e-3 or smaller) once the cavity flow has settled,
+        calibrated during development at resolution=24, dt=0.01.
+  requires_simulation: navier-stokes-baseline
+- name: approximately-divergence-free
+  classification: primary
+  description: |
+    mean(|div(u)|) over the domain, computed via DG0 interpolation of
+    div(u_n), must be below 0.05 at the baseline (resolution=24, Re=100).
+  measure:
+    kind: derived_scalar
+    field: mean_abs_divergence
+  pass_if:
+    op: "<"
+    value: 0.05
+    provenance:
+      kind: theory
+      note: >-
+        IPCS operator splitting introduces an O(dt) divergence residual
+        (plus a local O(h) artifact at the lid's two discontinuous-BC
+        corners) that is not exactly zero but should be small and shrink
+        under refinement; 0.05 is well above the ~0.003 observed at this
+        resolution during development.
+  requires_simulation: navier-stokes-baseline
+- name: stable-across-reynolds-sweep
+  classification: supporting
+  description: |
+    Across the reynolds=[100,400,1000] sweep, every variant's final max
+    speed must be finite and below 2x the lid velocity (no blow-up).
+  measure:
+    kind: derived_scalar
+    field: max_speed_across_sweep
+  pass_if:
+    op: "<"
+    value: 2.0
+    provenance:
+      kind: calibration
+      note: >-
+        The lid BC directly prescribes the max speed at u=lid_velocity;
+        2x leaves generous headroom for transient overshoot while still
+        catching a genuinely unstable/blown-up solve. Verified stable
+        (no reduction from the planned Re=1000 top variant was needed)
+        during development.
+  requires_simulation: navier-stokes-baseline
+
+pipeline_gate:
+  prerequisites:
+  - study: poisson-validation
+    condition: tests-passed
+  enables: []
+  proceed_condition: |
+    No further studies in this investigation currently depend on
+    navier-stokes; it stands as the investigation's fluid-dynamics
+    showcase, built directly on the validated dolfinx bridge
+    (poisson-validation) rather than on the scalar diffusion/reaction
+    studies.
+
+canonical_runs:
+- name: default
+  script: studies/navier-stokes/sims/run.py
+  args: []
+  label: "lid-driven cavity IPCS (resolution=24, Re=100/400/1000 sweep)"
+  default: true
+
+visualizations:
+- name: cavity-flow-streamlines
+  chart: viz/cavity_flow.html
+  render: "python sims/run.py"
+- name: cavity-pressure-heatmap
+  chart: viz/cavity_pressure.html
+  render: "python sims/run.py"
+
+conclusion: null

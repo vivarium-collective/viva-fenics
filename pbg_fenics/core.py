@@ -17,13 +17,15 @@ from process_bigraph import allocate_core
 
 from .processes.poisson import PoissonSolverStep
 from .processes.diffusion import DiffusionProcess
+from .processes.reaction import LogisticReactionProcess
 from .types import register_types
 
-# New processes (LogisticReactionProcess, NavierStokesProcess, ...) just need
-# an import above and an entry here.
+# New processes (NavierStokesProcess, ...) just need an import above and an
+# entry here.
 _PROCESSES = (
     ("PoissonSolverStep", PoissonSolverStep),
     ("DiffusionProcess", DiffusionProcess),
+    ("LogisticReactionProcess", LogisticReactionProcess),
 )
 
 

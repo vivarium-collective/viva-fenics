@@ -1,0 +1,78 @@
+name: workspace-ci
+on: [push, pull_request]
+
+# CI for a workspace scaffolded from pbg-template.
+#
+# Sequence:
+#   1. Check out the workspace (no submodules — workspace tests don't need them,
+#      and recursive init breaks when an external/* submodule contains its own
+#      orphaned gitlinks that aren't declared in its .gitmodules).
+#   2. Best-effort init of external/* submodules (one level deep, never recursive).
+#      Failures here are non-fatal — the workspace tests should run regardless.
+#   3. Set up venv + install workspace deps editably.
+#   4. Lint workspace.yaml against the JSON schema.
+#   5. Run pytest at the workspace root (if any test files exist).
+#
+# This file ships in pbg-template as `.j2` so GitHub does NOT run it on the
+# template repo itself (which has no real pyproject.toml). template-init.sh
+# renders it to `.yml` when a user scaffolds a workspace.
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: false
+      # Fail fast if a local absolute path (file:///, /Users/, /home/) was
+      # committed into a tracked file — a recurring CI break when a sibling
+      # editable install leaks into pyproject.toml. Only needs the repo, so it
+      # runs right after checkout, before any venv-dependent step.
+      - name: Check for leaked local paths
+        run: bash scripts/check-no-local-paths.sh
+      - name: Init external submodules (best-effort, non-recursive)
+        run: |
+          # Default `git submodule update` is non-recursive — omit --recursive
+          # to avoid descending into a sub-module's submodules (which can have
+          # orphan gitlinks like v2ecoli's .claude/worktrees/*). Failures here
+          # are tolerated — workspace tests don't strictly need every external.
+          # NOTE: --no-recursive is NOT a real flag; just omit --recursive.
+          git submodule update --init external/ 2>&1 || true
+          echo "--- external/ contents ---"
+          ls -la external/ 2>&1 || true
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Set up venv and install
+        run: |
+          uv venv .venv
+          source .venv/bin/activate
+          # A scaffolded workspace ships a root pyproject.toml (rendered from
+          # pyproject.toml.j2) with a `dev` extra, so the normal path is the
+          # editable install below. Guard it so a workspace that has diverged
+          # (e.g. no root package yet) still gets the dev tooling and a green
+          # CI run instead of `uv pip install` aborting with
+          # "does not appear to be a Python project".
+          if [ -f pyproject.toml ] || [ -f setup.py ]; then
+            uv pip install -e ".[dev]"
+          else
+            echo "No root pyproject.toml/setup.py found — installing dev tooling only."
+            uv pip install pytest
+          fi
+      - name: Lint workspace
+        run: |
+          source .venv/bin/activate
+          # Scaffolded workspaces ship this linter; tolerate its absence so a
+          # trimmed-down workspace doesn't fail CI on a missing script.
+          if [ -f scripts/lint-workspace.py ]; then
+            python scripts/lint-workspace.py
+          else
+            echo "No scripts/lint-workspace.py found — skipping workspace lint."
+          fi
+      - name: Run workspace tests
+        if: hashFiles('tests/**/*.py') != ''
+        run: |
+          source .venv/bin/activate
+          pytest tests/ -v --color=yes

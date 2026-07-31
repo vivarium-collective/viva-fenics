@@ -1,5 +1,6 @@
 """Process-bigraph wrapper for FEniCSx (dolfinx)."""
 
+from pbg_fenics import viz
 from pbg_fenics.processes.poisson import PoissonSolverStep
 from pbg_fenics.processes.diffusion import DiffusionProcess
 from pbg_fenics.processes.reaction import LogisticReactionProcess
@@ -19,5 +20,6 @@ __all__ = [
     "mesh_convergence",
     "build_core",
     "register_processes",
+    "viz",
 ]
 

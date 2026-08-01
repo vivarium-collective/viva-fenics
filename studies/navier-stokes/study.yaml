@@ -60,25 +60,29 @@ description: |
   skew-symmetric convection form -- went unstable (NaN) partway through the
   startup transient (~t=0.5s) at this mesh; dt=0.0005 does not. The
   production run (`sims/run.py`) uses dt=0.0005, which is smaller than the
-  1e-3-2e-3 that suffices for the simpler lid-driven cavity, and cost 33.7
-  minutes of wall-time (6058 substeps) for 3.0s of simulated time on this
-  machine.
+  1e-3-2e-3 that suffices for the simpler lid-driven cavity. An initial
+  3.0s/33.7-minute run reached periodic shedding but truncated the lift
+  coefficient while it was still growing toward its limit cycle; the
+  committed production run was extended to T_PROD=8.0s (~2 hours
+  wall-clock, ~16000 substeps, run on a beefy machine) to let Cl fully
+  saturate.
 
-  Achieved result (the committed run): a genuine, clearly alternating von
-  Karman vortex street. Lift crosses zero and begins oscillating by
-  t~=0.65s, and by the analysis window (t=1.5-3.0s) std(Cl)=0.41 with
-  Cl swinging roughly +/-0.6 to +/-0.8 -- still growing in amplitude toward
-  (not yet fully at) the DFG reference Cl_max~=0.99-1.01 by t=3.0s. Drag
-  settles to Cd_mean=3.03 / Cd_max=3.15 over that window, ~3-6% below the
-  DFG reference Cd_max~=3.22-3.24. The shedding frequency's Strouhal number
-  is St~=0.31 +/- 0.07 (Hann-windowed FFT, 3-point parabolic peak
-  interpolation; the +/-0.07 is the FFT's bin-resolution floor set by the
-  ~1.5s analysis window, ~5 shedding cycles -- a plain rectangular-window
-  FFT's nearest-bin estimate alone, 0.33, is within measurement resolution
-  of the DFG reference ~0.295-0.305, not a precise ~11% offset from it). All
-  three land close to the reference neighborhood on a mesh/dt/duration
-  chosen for feasible wall-time rather than DFG-grade mesh convergence --
-  see the study's report for the full accuracy/runtime tradeoff discussion.
+  Achieved result (the committed, extended run): a genuine, clearly
+  alternating von Karman vortex street that has reached a saturated limit
+  cycle -- not still growing. Lift crosses zero and begins oscillating by
+  t~=0.65s, and by the analysis window (the second half of the run)
+  std(Cl)=0.736 with Cl_max=1.066, matching -- and slightly exceeding -- the
+  DFG reference Cl_max~=0.99-1.01. Drag settles to Cd_mean=3.168 /
+  Cd_max=3.204 over that window, within ~1-2% of the DFG reference
+  Cd_max~=3.22-3.24. The shedding frequency's Strouhal number is
+  St=0.30 +/- 0.02 (Hann-windowed FFT, 3-point parabolic peak interpolation;
+  shedding f=3.023 Hz), landing directly on the DFG reference
+  St~=0.295-0.305 (the earlier truncated run's raw-bin estimate, 0.333, was
+  off the reference by the FFT's own coarse bin resolution at that shorter
+  window, not by a real physics discrepancy). All three metrics now match
+  the DFG 2D-2 benchmark closely, despite a mesh/dt chosen for feasible
+  wall-time rather than DFG-grade mesh convergence -- see the study's report
+  for the full accuracy/runtime tradeoff discussion.
 
 baseline:
 - name: vortex-street-baseline
@@ -101,9 +105,9 @@ expected_behavior:
     would mean the wake never left its initial near-symmetric state -- no
     vortex shedding occurred. 0.15 sits well above the ~1e-3
     startup-transient noise floor and comfortably below the achieved
-    std(Cl)=0.41 (production run, analysis window t=1.5-3.0s), so it
-    cleanly separates "no shedding" from the real shedding this run
-    produced.
+    std(Cl)=0.736 (extended production run, T_PROD=8.0s analysis window),
+    so it cleanly separates "no shedding" from the real, now-saturated
+    shedding this run produced.
   measure:
     kind: derived_scalar
     field: cl_std_analysis_window
@@ -111,17 +115,18 @@ expected_behavior:
     op: ">"
     value: 0.15
 - name: drag-in-benchmark-range
-  en: "The mean drag coefficient over the analysis window sits in [2.7, 3.6], bracketing the achieved 3.03/3.15 and close to the DFG 2D-2 benchmark's Cd_max~=3.22-3.24."
+  en: "The mean drag coefficient over the analysis window sits in [2.7, 3.6], bracketing the achieved 3.168/3.204 and within ~1-2% of the DFG 2D-2 benchmark's Cd_max~=3.22-3.24."
   observable: drag_coeff
   condition: 2.7 < mean(drag_coeff over analysis window) < 3.6
   rationale: >-
     The DFG 2D-2 unsteady benchmark's published reference range for the
-    periodic-regime drag coefficient is Cd_max~=3.22-3.24. The production
-    run (this solver's feasible-wall-time mesh/dt, not DFG-grade mesh
-    convergence) achieved Cd_mean=3.03 / Cd_max=3.15 over the analysis
-    window -- ~3-6% below the reference. The band brackets that achieved
-    result with headroom on both sides while still failing a spuriously low
-    (near-Stokes-flow, ~1-2) or blown-up (>4) result.
+    periodic-regime drag coefficient is Cd_max~=3.22-3.24. The extended
+    production run (T_PROD=8.0s, this solver's feasible-wall-time mesh/dt,
+    not DFG-grade mesh convergence) achieved Cd_mean=3.168 / Cd_max=3.204
+    over the analysis window -- within ~1-2% of the reference. The band
+    brackets that achieved result with headroom on both sides while still
+    failing a spuriously low (near-Stokes-flow, ~1-2) or blown-up (>4)
+    result.
   measure:
     kind: derived_scalar
     field: cd_mean_analysis_window
@@ -130,19 +135,20 @@ expected_behavior:
     low: 2.7
     high: 3.6
 - name: strouhal-in-range
-  en: "The shedding frequency's Strouhal number (Hann-windowed, parabolic-interpolated FFT peak of the lift signal) sits in [0.25, 0.40], bracketing the achieved St~=0.31 +/- 0.07 -- within measurement resolution of the DFG benchmark's St~=0.30."
+  en: "The shedding frequency's Strouhal number (Hann-windowed, parabolic-interpolated FFT peak of the lift signal) sits in [0.25, 0.40], bracketing the achieved St=0.30 +/- 0.02 -- directly on the DFG benchmark's St~=0.295-0.305."
   observable: strouhal_number
   condition: 0.25 < St < 0.40
   rationale: >-
     St = f_shed*D/U is close to universal (~0.2-0.3) for bluff-body vortex
     shedding across a wide Reynolds range, and the DFG 2D-2 reference is
-    St~=0.30 specifically at Re=100. The production run's refined estimate
-    (over the analysis window t=1.5-3.0s, ~5 shedding cycles) is
-    St~=0.31 +/- 0.07 -- the +/-0.07 is the FFT's own bin-resolution floor
-    at this window duration, not an error bar on the physics, and it fully
-    covers the DFG reference. The band brackets that achieved result while
-    still rejecting a qualitatively wrong (e.g. spurious high-frequency
-    numerical) peak.
+    St~=0.30 specifically at Re=100. The extended production run's refined
+    estimate (T_PROD=8.0s analysis window, ~12 shedding cycles) is
+    St=0.30 +/- 0.02 (shedding f=3.023 Hz) -- the +/-0.02 is the FFT's own
+    bin-resolution floor at this window duration, not an error bar on the
+    physics, and it lands directly on the DFG reference (an improvement over
+    the earlier, shorter run's coarser-resolution 0.333 raw-bin estimate).
+    The band brackets that achieved result while still rejecting a
+    qualitatively wrong (e.g. spurious high-frequency numerical) peak.
   measure:
     kind: derived_scalar
     field: strouhal_number
@@ -168,15 +174,15 @@ behavior_tests:
       note: >-
         0.15 sits well above the ~1e-3 lift-coefficient noise floor observed
         during the ramp-phase transient in development, and comfortably
-        below the production run's achieved std(Cl)=0.41 (analysis window
-        t=1.5-3.0s), so it cleanly separates "no shedding" from the real
-        shedding this run produced.
+        below the extended production run's achieved std(Cl)=0.736
+        (T_PROD=8.0s analysis window, saturated limit cycle), so it cleanly
+        separates "no shedding" from the real shedding this run produced.
   requires_simulation: vortex-street-baseline
 - name: drag-in-benchmark-range
   classification: primary
   description: |
     mean(drag_coeff) over the analysis window must land in [2.7, 3.6],
-    bracketing the achieved Cd_mean=3.03 and close to the DFG 2D-2
+    bracketing the achieved Cd_mean=3.168 and close to the DFG 2D-2
     benchmark's Cd_max~=3.22-3.24.
   measure:
     kind: derived_scalar
@@ -190,8 +196,8 @@ behavior_tests:
       note: >-
         Schafer/Turek DFG 2D-2 reference Cd_max~=3.22-3.24 (unsteady case,
         Re=100) is the target this band is drawn near, but the band itself
-        was fit around the production run's achieved Cd_mean=3.03 /
-        Cd_max=3.15 (~3-6% below reference) on this solver's
+        was fit around the extended production run's achieved Cd_mean=3.168
+        / Cd_max=3.204 (within ~1-2% of reference) on this solver's
         feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- i.e.
         calibrated to the observed result with headroom, not derived from
         theory alone.
@@ -201,7 +207,7 @@ behavior_tests:
   description: |
     The Strouhal number (Hann-windowed, parabolic-interpolated FFT peak of
     the lift-coefficient signal) over the analysis window must land in
-    [0.25, 0.40], bracketing the achieved St~=0.31 +/- 0.07.
+    [0.25, 0.40], bracketing the achieved St=0.30 +/- 0.02.
   measure:
     kind: derived_scalar
     field: strouhal_number
@@ -214,11 +220,12 @@ behavior_tests:
       note: >-
         Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100)
         is the target this band is drawn near, but the band itself was fit
-        around the production run's achieved St~=0.31 +/- 0.07 (the
-        uncertainty is the FFT's own bin-resolution floor over the ~1.5s/
-        ~5-cycle analysis window, not an error bar on the underlying
-        physics) -- i.e. calibrated to the observed result with headroom,
-        not derived from theory alone.
+        around the extended production run's achieved St=0.30 +/- 0.02
+        (shedding f=3.023 Hz; the uncertainty is the FFT's own
+        bin-resolution floor over the T_PROD=8.0s/~12-cycle analysis
+        window, not an error bar on the underlying physics) -- i.e.
+        calibrated to the observed result with headroom, not derived from
+        theory alone.
   requires_simulation: vortex-street-baseline
 
 pipeline_gate:
@@ -257,15 +264,15 @@ visualizations:
 embed_visualizations:
 - name: vortex-street-vorticity
   url: /studies/navier-stokes/viz/vortex_street_vorticity.html
-  description: "Animated vorticity field -- the von Karman vortex street shedding off the cylinder, alternating positive/negative lobes in the wake."
+  description: "Animated vorticity field -- the von Karman vortex street shedding off the cylinder, alternating positive/negative lobes in the wake, now run to a saturated limit cycle (T_PROD=8.0s)."
 - name: drag-lift-timeseries
   url: /studies/navier-stokes/viz/drag_lift_timeseries.html
-  description: "Drag/lift coefficient vs simulated time -- Cl visibly oscillates (std=0.41) once shedding establishes."
+  description: "Drag/lift coefficient vs simulated time -- Cl visibly oscillates and saturates (std=0.736, Cl_max=1.066) once shedding establishes."
 - name: wake-velocity-snapshot
   url: /studies/navier-stokes/viz/vortex_street_velocity.html
-  description: "Interactive Plotly streamlines of the wake velocity field at the end of the production run (t=3.0s)."
+  description: "Interactive Plotly streamlines of the wake velocity field at the end of the production run (t=8.0s)."
 - name: pressure-snapshot
   url: /studies/navier-stokes/viz/vortex_street_pressure.html
-  description: "Interactive Plotly heatmap of the pressure field at the end of the production run (t=3.0s)."
+  description: "Interactive Plotly heatmap of the pressure field at the end of the production run (t=8.0s)."
 
 conclusion: null

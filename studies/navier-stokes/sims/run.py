@@ -33,10 +33,13 @@ Standalone; run from the workspace root::
     pixi run python studies/navier-stokes/sims/run.py
 
 Runtime note: at h_cylinder=0.008 (mesh ~8000 cells) and dt=0.0005, one
-substep costs ~0.3s wall-clock (this machine); the default T_PROD=3.0s
-production run is ~6000 substeps, i.e. roughly 30-35 minutes. See this
-study's report for the measured wall-time of the run that produced the
-committed viz/results.
+substep costs ~0.3s wall-clock (this machine); the default T_PROD=8.0s
+production run is ~16000 substeps, i.e. roughly ~2 hours -- extended from
+an earlier 3.0s/~30min run because 3.0s truncated the lift coefficient
+before it reached its saturated limit cycle (see T_PROD comment below).
+Run on a beefy machine (this was run on the mini). See this study's report
+for the measured wall-time of the run that produced the committed
+viz/results.
 """
 from __future__ import annotations
 
@@ -74,7 +77,10 @@ H_CYLINDER = 0.008
 H_FAR = 0.05
 DT = 0.0005
 REYNOLDS = 100.0
-T_PROD = 3.0  # simulated seconds
+T_PROD = 8.0  # simulated seconds -- extended production run: reaches the
+# saturated Cl limit cycle (the earlier T_PROD=3.0 run was truncated while
+# Cl was still growing). ~2h wall-clock at dt=0.0005/h_cylinder=0.008; run
+# on a beefy machine (this was run on the mini).
 SNAPSHOT_DT = 0.05  # simulated seconds between animation frames
 
 # Analysis window: the last fraction of the run, after the impulsive-start
@@ -83,13 +89,14 @@ ANALYSIS_FRACTION = 0.5
 
 # Behavior-test thresholds (see study.yaml's expected_behavior/behavior_tests
 # for the same numbers with rationale). Calibrated around the ACHIEVED
-# production-run values (Cd_mean=3.03, Cd_max=3.15, std(Cl)=0.41,
-# St=0.33 -- see the study report), not just loosely around the DFG
-# reference -- comfortable headroom on both sides, but tight enough to
-# catch a genuinely wrong (near-Stokes, blown-up, or non-shedding) result.
-CL_STD_THRESHOLD = 0.15  # lift-oscillates: std(Cl) over the analysis window (achieved 0.41)
-CD_RANGE = (2.7, 3.6)  # drag-in-benchmark-range: brackets achieved 3.03/3.15, near DFG's 3.22-3.24
-ST_RANGE = (0.25, 0.40)  # strouhal-in-range: brackets achieved 0.333, near DFG's ~0.30
+# extended-production-run values (Cd_mean=3.168, Cd_max=3.204, std(Cl)=0.736,
+# St=0.30 -- a saturated limit cycle matching the DFG benchmark; see the
+# study report), not just loosely around the DFG reference -- comfortable
+# headroom on both sides, but tight enough to catch a genuinely wrong
+# (near-Stokes, blown-up, or non-shedding) result.
+CL_STD_THRESHOLD = 0.15  # lift-oscillates: std(Cl) over the analysis window (achieved 0.736)
+CD_RANGE = (2.7, 3.6)  # drag-in-benchmark-range: brackets achieved 3.168/3.204, matching DFG's 3.22-3.24
+ST_RANGE = (0.25, 0.40)  # strouhal-in-range: brackets achieved 0.30, on DFG's 0.295-0.305
 
 
 def _lightweight_vortex_street_doc(core):

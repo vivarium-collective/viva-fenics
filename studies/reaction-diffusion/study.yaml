@@ -79,35 +79,34 @@ description: |
   practice for Gray-Scott initial conditions; the PDE/coefficients
   themselves are unchanged).
 
-  Achieved result (the committed run, ~13.2 min total wall-time): the
-  baseline (coral/mitosis-like, resolution=96, 6000 backward-Euler ticks)
-  self-organized from a near-uniform start (var(V) 0.00111 -> 0.01169, a
-  10.5x growth) into a single, still-expanding connected pattern region
-  covering 48.3% of the domain (V in [0.004, 0.367] throughout -- bounded,
-  no blow-up). The labyrinth variant (resolution=48, 4000 ticks) grew
-  10.5x/11.6x similarly but, distinctively, had already broken up into 9
-  disconnected regions (coverage 29.0%) -- a topologically different
-  morphology from the still-single-blob baseline/stripes, not just a
-  different coverage number. The stripes/worms variant (resolution=48, 4000
-  ticks) grew 12.3x to a smaller 14.8% coverage, still a single connected
-  (still-growing) region at this tick count. The three regimes' coverage
-  spans 0.148-0.483 (spread 0.336) -- driven by both the (F, k) kinetics
-  AND the variants' smaller step budget/coarser mesh (an explicit,
-  disclosed wall-time tradeoff -- see the study report), so the coverage
-  numbers alone are not a clean isolate of kinetics-only morphology; the
-  labyrinth's 9-vs-1 blob-count difference is the cleaner topological
-  signal that (F, k) genuinely changes pattern structure, not just its
-  extent. None of the three regimes reached a fully mature, multi-thousand-
-  step "textbook" pattern (spots/stripes/labyrinth as commonly rendered in
-  the literature take far more ticks) -- this is honest pattern ONSET plus
-  clear, bounded, structurally distinct growth, not the fully saturated
-  steady-state texture. See the study's report for the full breakdown.
+  Achieved result (the committed run, extended from an earlier onset-only
+  sizing to reach mature texture -- ~2.7h total wall-time across all three
+  regimes): the baseline (coral/mitosis-like, resolution=128, 18000
+  backward-Euler ticks) self-organized from a near-uniform start into a
+  10.2x var(V) growth, settling into a single connected pattern region
+  covering 48.0% of the domain (bounded, no blow-up). The labyrinth variant
+  (resolution=96, 10000 ticks) grew 10.5x and, distinctively, has matured
+  into a genuine labyrinth: 40 disconnected regions (coverage 30.1%) -- up
+  from ~9 regions at the earlier, shorter sizing -- a clearly different,
+  now visually unambiguous "labyrinth" topology vs. the single-blob
+  baseline/stripes. The stripes/worms variant (resolution=96, 10000 ticks)
+  grew 15.5x to 49.7% coverage, still a single connected region at this
+  tick count. The three regimes' coverage spans 0.301-0.497 (spread 0.196)
+  -- driven by both the (F, k) kinetics and (to a lesser extent than
+  before) the variants' still-coarser-than-baseline mesh; the labyrinth's
+  40-vs-1 blob-count difference remains the cleanest topological signal
+  that (F, k) genuinely changes pattern structure, not just its extent.
+  This extended run reaches materially more mature texture than the
+  earlier onset-only sizing (most visibly the labyrinth's blob count
+  jumping from ~9 to 40), though it is still a finite-time snapshot, not an
+  infinite-time steady state -- see the study's report for the full
+  breakdown.
 
 baseline:
 - name: turing-baseline
   composite: viva_fenics.composites.turing_patterns.turing_patterns
   params:
-    resolution: 96
+    resolution: 128
     F: 0.037
     k: 0.06
     Du: 2.0e-5
@@ -120,13 +119,13 @@ variants:
   parameter_overrides:
     F: 0.03
     k: 0.06
-    resolution: 48
+    resolution: 96
 - name: stripes
   base_composite: turing-baseline
   parameter_overrides:
     F: 0.055
     k: 0.062
-    resolution: 48
+    resolution: 96
 
 expected_behavior:
 - name: pattern-emerges
@@ -201,12 +200,12 @@ behavior_tests:
     provenance:
       kind: calibration
       note: >-
-        The committed production run (resolution=96, 6000 ticks, dt=1.0)
-        achieved growth=10.5x (var(V) 0.00111 -> 0.01169); 5.0 leaves ~2.1x
-        headroom below that while still catching a "reaction never actually
-        coupled in" regression (which produces order-1 growth from
-        quadrature noise alone, per the analogous check in
-        ``reaction_diffusion``'s Fisher-KPP study).
+        The committed extended production run (resolution=128, 18000 ticks,
+        dt=1.0) achieved growth=10.2x; 5.0 leaves ~2x headroom below that
+        while still catching a "reaction never actually coupled in"
+        regression (which produces order-1 growth from quadrature noise
+        alone, per the analogous check in ``reaction_diffusion``'s
+        Fisher-KPP study).
   requires_simulation: turing-baseline
 - name: pattern-structured-not-blowup
   classification: primary
@@ -224,13 +223,14 @@ behavior_tests:
     provenance:
       kind: calibration
       note: >-
-        The committed production run's baseline achieved coverage=0.483
-        (V in [0.004, 0.367], comfortably bounded); [0.1, 0.7] brackets that
-        with headroom on both sides while still catching "pattern never
-        really emerged" (near 0) or "whole domain saturated/blew up" (near
-        1). The field-bound half of this check mirrors the FAST unit
-        tests' (-0.5, 1.5) band, itself the accumulate-vs-overwrite
-        regression guard (see ``tests/test_turing_patterns.py``).
+        The committed extended production run's baseline achieved
+        coverage=0.480 (comfortably bounded, no blow-up); [0.1, 0.7]
+        brackets that with headroom on both sides while still catching
+        "pattern never really emerged" (near 0) or "whole domain
+        saturated/blew up" (near 1). The field-bound half of this check
+        mirrors the FAST unit tests' (-0.5, 1.5) band, itself the
+        accumulate-vs-overwrite regression guard (see
+        ``tests/test_turing_patterns.py``).
   requires_simulation: turing-baseline
 - name: regimes-differ
   classification: supporting
@@ -246,13 +246,14 @@ behavior_tests:
     provenance:
       kind: calibration
       note: >-
-        The committed production run achieved coverage 0.483 (baseline) /
-        0.290 (labyrinth) / 0.148 (stripes) -- a spread of 0.336. 0.1 leaves
-        ~3.4x headroom below that while still catching a "regimes don't
-        actually differ" regression. Coverage is partly confounded by the
-        variants' smaller step budget/coarser mesh (an explicit, disclosed
-        wall-time tradeoff -- see the study report); the labyrinth regime's
-        connected-component count (9, vs 1 for the other two regimes) is a
+        The committed extended production run achieved coverage 0.480
+        (baseline) / 0.301 (labyrinth) / 0.497 (stripes) -- a spread of
+        0.196. 0.1 leaves ~2x headroom below that while still catching a
+        "regimes don't actually differ" regression. Coverage is still
+        partly confounded by the labyrinth/stripes variants running at a
+        coarser mesh than the baseline (an explicit, disclosed wall-time
+        tradeoff -- see the study report); the labyrinth regime's
+        connected-component count (40, vs 1 for the other two regimes) is a
         second, less-confounded topological signal of the same claim, not
         gated on here only because it isn't defined identically enough
         across regimes for a clean numeric threshold.
@@ -272,7 +273,7 @@ canonical_runs:
 - name: default
   script: studies/reaction-diffusion/sims/run.py
   args: []
-  label: "Gray-Scott Turing patterns (baseline resolution=96/6000 ticks, 2 variants at resolution=48/4000 ticks)"
+  label: "Gray-Scott Turing patterns (baseline resolution=128/18000 ticks, 2 variants at resolution=96/10000 ticks)"
   default: true
 
 visualizations:
@@ -298,7 +299,7 @@ embed_visualizations:
   description: "Final V field, coral/mitosis-like regime (F=0.037, k=0.06)."
 - name: turing-pattern-labyrinth-final
   url: /studies/reaction-diffusion/viz/turing_pattern_labyrinth_final.html
-  description: "Final V field, labyrinth regime (F=0.03, k=0.06) -- a visibly different morphology from the baseline."
+  description: "Final V field, labyrinth regime (F=0.03, k=0.06) -- 40 disconnected regions, a mature labyrinth topology visibly different from the baseline's single connected blob."
 - name: turing-pattern-stripes-final
   url: /studies/reaction-diffusion/viz/turing_pattern_stripes_final.html
   description: "Final V field, stripes/worms regime (F=0.055, k=0.062) -- a third distinct morphology."

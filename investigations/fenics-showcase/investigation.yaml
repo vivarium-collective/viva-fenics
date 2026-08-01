@@ -106,14 +106,17 @@ executive:
     55.8x (mesh-convergence); a morphogen gradient whose fitted decay
     length matches the analytic lambda=sqrt(D/k) to within 1.63% across
     three regimes, with French-flag thresholds shifting monotonically
-    inward as predicted (transient-diffusion); a genuine Gray-Scott Turing
-    instability -- V's spatial variance grows 10.5x from a near-uniform
-    start into a bounded, structurally non-trivial pattern, with three
-    (F,k) regimes producing measurably different coverage/topology
-    (reaction-diffusion); a von Karman vortex street with an oscillating
-    lift coefficient (std(Cl)=0.41), mean drag Cd=3.03 (DFG 2D-2 reference
-    Cd_max~=3.22-3.24), and Strouhal St~=0.31+/-0.07 (reference ~0.30)
-    (navier-stokes); a Taylor-Hood Stokes solve through a porous pillar
+    inward as predicted (transient-diffusion); a genuine, now-mature
+    Gray-Scott Turing instability -- V's spatial variance grows 10.2-15.5x
+    across the three regimes from a near-uniform start into a bounded,
+    structurally non-trivial pattern (the labyrinth regime maturing to 40
+    disconnected pattern regions), with three (F,k) regimes producing
+    measurably different coverage/topology (reaction-diffusion); a von
+    Karman vortex street with a now-saturated oscillating lift coefficient
+    (std(Cl)=0.736, Cl_max=1.066), mean drag Cd=3.168 (DFG 2D-2 reference
+    Cd_max~=3.22-3.24, within ~1-2%), and Strouhal St=0.30+/-0.02 (matching
+    reference ~0.295-0.305) (navier-stokes); a Taylor-Hood Stokes solve
+    through a porous pillar
     lattice that stays approximately divergence-free and exactly no-slip
     at every porosity, with effective permeability falling >10x across a
     4-point porosity sweep (complex-geometry); and an ALE-coupled
@@ -173,18 +176,23 @@ scientific_argument:
     inward as k increases."
   - "reaction-diffusion: two DiffusionProcess instances (species U, V;
     Du=2*Dv) and one GrayScottReactionProcess, coupled purely through
-    shared stores, produce a genuine Turing instability -- V's spatial
-    variance grows 10.5x from a near-uniform start, the pattern is bounded
-    and structurally non-trivial (48.3% domain coverage, not all or none of
-    it), and three (F,k) regimes produce measurably different
-    coverage/topology (a 0.336 coverage spread, and 9-vs-1 connected
-    pattern regions between the labyrinth and other regimes)."
+    shared stores, produce a genuine, now-mature Turing instability -- V's
+    spatial variance grows 10.2x (baseline) / 10.5x (labyrinth) / 15.5x
+    (stripes) from a near-uniform start, the pattern is bounded and
+    structurally non-trivial (48.0% baseline domain coverage, not all or
+    none of it), and three (F,k) regimes produce measurably different
+    coverage/topology (a 0.196 coverage spread, and 40-vs-1 connected
+    pattern regions between the labyrinth and other regimes -- the
+    labyrinth's blob count roughly quadrupled from the earlier
+    onset-only-sizing run, now unambiguously a labyrinth)."
   - "navier-stokes: flow past an off-center cylinder (DFG 2D-2 benchmark,
-    Re=100) sheds a genuine von Karman vortex street -- the lift
-    coefficient oscillates (std(Cl)=0.41) once past the impulsive-start
-    transient, mean drag Cd=3.03 lands within ~6% of the DFG reference
-    Cd_max~=3.22-3.24, and the shedding Strouhal number St~=0.31+/-0.07
-    covers the DFG reference ~0.30."
+    Re=100) sheds a genuine von Karman vortex street that has now reached a
+    saturated limit cycle -- the lift coefficient oscillates (std(Cl)=0.736,
+    Cl_max=1.066, matching/slightly exceeding the DFG reference
+    Cl_max~=0.99-1.01) once past the impulsive-start transient, mean drag
+    Cd=3.168 lands within ~1-2% of the DFG reference Cd_max~=3.22-3.24, and
+    the shedding Strouhal number St=0.30+/-0.02 lands directly on the DFG
+    reference ~0.295-0.305."
   - "complex-geometry: a real Taylor-Hood mixed Stokes solve on a
     gmsh-generated periodic pillar lattice stays approximately
     divergence-free (mean|div(u)| ~3e-5-1e-4) and exactly no-slip on every
@@ -228,10 +236,13 @@ scientific_argument:
     subcritical for this composite's Du/Dv/dt/domain-size combination
     during development; the study's three regimes (coral/mitosis-like,
     labyrinth, stripes) were chosen because they were verified to grow
-    robustly, not because they are the only regimes worth showing -- and
-    none reached a fully mature, textbook-saturated pattern texture at the
-    production step count (honest pattern onset, not steady-state) -- see
-    the study report."
+    robustly, not because they are the only regimes worth showing. An
+    extended production run (resolution/step-count roughly 2-3x the
+    earlier onset-only sizing) now reaches materially more mature texture
+    -- most visibly the labyrinth regime's blob count growing from ~9 to 40
+    disconnected regions -- though it is still a finite-time snapshot, not
+    a fully saturated, infinite-time steady-state texture -- see the study
+    report."
   - "The three advanced studies (navier-stokes, complex-geometry,
     moving-boundary) each stand on their own dolfinx bridge exercise -- the
     porous lattice is not deforming, the vortex street is not flowing

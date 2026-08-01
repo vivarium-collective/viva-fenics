@@ -32,11 +32,14 @@ Standalone; run from the workspace root::
 
     pixi run python studies/reaction-diffusion/sims/run.py
 
-Runtime note: the baseline (resolution=96, 6000 backward-Euler ticks at
+Runtime note: the baseline (resolution=128, 18000 backward-Euler ticks at
 dt=1.0, ~2 diffusion solves/tick) is the expensive part; the two variants run
-at a coarser resolution (48) with fewer ticks, per this study's report on
-feasible wall-time sizing. See that report for the measured wall-time of the
-run that produced the committed viz/results.
+at a coarser resolution (96) with fewer ticks. Extended from an earlier
+96/6000 (baseline) and 48/4000 (variants) sizing -- that run only reached
+pattern onset (e.g. the labyrinth regime had ~9 blobs); this extended run
+reaches mature texture (~2.7h total wall-clock across all three regimes; run
+on a beefy machine / the mini). See this study's report for the measured
+wall-time of the run that produced the committed viz/results.
 """
 from __future__ import annotations
 
@@ -69,30 +72,32 @@ DT = 1.0
 # development to grow robustly under this composite's Du/Dv/dt/domain
 # combination (see module docstring for why the classic "spots" combo was
 # dropped). The baseline runs at a finer mesh/longer duration (it's the one
-# with the animated wow-shot); the variants run cheaper, per this study's
-# report on feasible wall-time sizing -- they still land clearly in
-# different morphological regimes.
+# with the animated wow-shot); the variants run cheaper -- they still land
+# clearly in different morphological regimes. Extended production sizing
+# (resolution/n_steps roughly 2-3x the earlier onset-only sizing) reaches
+# mature texture -- ~2.7h total wall-clock across all three regimes; run on
+# a beefy machine / the mini.
 REGIMES = [
     {"name": "baseline", "label": "coral / mitosis-like", "F": 0.037, "k": 0.06,
-     "resolution": 96, "n_steps": 6000, "animate": True},
+     "resolution": 128, "n_steps": 18000, "animate": True},
     {"name": "labyrinth", "label": "labyrinth", "F": 0.03, "k": 0.06,
-     "resolution": 48, "n_steps": 4000, "animate": False},
+     "resolution": 96, "n_steps": 10000, "animate": False},
     {"name": "stripes", "label": "stripes / worms", "F": 0.055, "k": 0.062,
-     "resolution": 48, "n_steps": 4000, "animate": False},
+     "resolution": 96, "n_steps": 10000, "animate": False},
 ]
 
 ANIMATION_FRAME_BUDGET = 30  # viz.field_animation_html guidance: <=~30 frames
 
 # Behavior-test thresholds -- see study.yaml's expected_behavior /
 # behavior_tests for the same numbers with rationale. Calibrated with
-# headroom below what the shorter development-sweep runs (1500-2500 ticks,
-# coarser mesh) already achieved; the production run below has more ticks
-# and, for the baseline, a finer mesh, so should clear these comfortably --
-# see this study's report for the ACHIEVED production values.
-GROWTH_RATIO_MIN = 5.0          # pattern-emerges: var(V) growth over the baseline run (achieved 10.5x)
+# headroom below what the extended production run achieves (baseline
+# growth 10.2x, labyrinth 10.5x, stripes 15.5x; baseline coverage 0.480;
+# coverage spread 0.196 -- see this study's report for the full ACHIEVED
+# production values).
+GROWTH_RATIO_MIN = 5.0          # pattern-emerges: var(V) growth over the baseline run (achieved 10.2x)
 FIELD_BOUND = (-0.5, 1.5)        # pattern-bounded: loose [0,1]-ish band (see FAST tests)
-COVERAGE_RANGE = (0.1, 0.7)      # pattern-bounded: fraction of domain "inside" a pattern feature (achieved 0.483)
-COVERAGE_DIVERSITY_MIN = 0.1     # regimes-differ: spread of coverage across the 3 regimes (achieved 0.336)
+COVERAGE_RANGE = (0.1, 0.7)      # pattern-bounded: fraction of domain "inside" a pattern feature (achieved 0.480)
+COVERAGE_DIVERSITY_MIN = 0.1     # regimes-differ: spread of coverage across the 3 regimes (achieved 0.196)
 
 
 def _pattern_metrics(coords, v_field, n_grid=100, blob_frac=0.5):

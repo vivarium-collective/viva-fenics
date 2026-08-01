@@ -1,0 +1,198 @@
+schema_version: 4
+name: complex-geometry
+title: "Complex geometry: gmsh-generated non-trivial domains"
+created: '2026-07-31'
+status: planned
+phase: Build
+
+question: |
+  Does a real gmsh-constructed non-trivial planar geometry -- imported into
+  dolfinx via `dolfinx.io.gmsh.model_to_mesh` -- produce a genuine
+  unstructured triangulation with a positive cell count, and does a real
+  Poisson solve on that imported mesh (homogeneous Dirichlet boundary, a
+  constant interior source) stay finite, bounded, and non-trivially
+  nonzero, across three qualitatively different domain topologies (a
+  simply-connected domain with a circular hole, a non-convex re-entrant
+  corner, and a multiply-connected annulus)?
+hypothesis: |
+  The gmsh -> dolfinx import path is standard and robust for any of these
+  three domains, so each should import with a cell count well above a
+  trivial handful, and -Laplacian(u) = 1 with u=0 on the full boundary
+  should have a smooth, non-negative (maximum-principle), interior-peaked
+  solution on every one of them -- confirming the FEniCSx bridge works on
+  genuinely non-trivial, non-rectangular domains, not only the unit square
+  every other study in this investigation uses.
+objective: |
+  Build the `complex_geometry` composite (a single `ComplexGeometryStep`:
+  gmsh geometry construction -> dolfinx import -> Poisson solve) for each of
+  the three named geometries (obstacle, L-shape, annulus) and verify (a)
+  each mesh imports with a positive, non-trivial cell count and (b) each
+  solve returns a finite, bounded, non-trivial solution field.
+description: |
+  Wraps a single `ComplexGeometryStep` in the `complex_geometry` composite
+  generator (Task 11). The Step is stateless -- given only a named geometry
+  + mesh resolution + polynomial degree, it: (1) builds the geometry with
+  the real gmsh Python API (`viva_fenics.fem_gmsh`) -- constructive solid
+  geometry (`gmsh.model.occ`) boolean cuts producing an obstacle domain
+  (unit square minus a circular hole), an L-shaped domain (unit square minus
+  its upper-right quadrant), or an annulus (outer disk minus a concentric
+  inner disk); (2) imports the resulting unstructured triangulation into a
+  dolfinx `Mesh` via `dolfinx.io.gmsh.model_to_mesh(gmsh.model, comm, rank,
+  gdim=2)`; and (3) solves the Poisson equation -Laplacian(u) = 1 with a
+  homogeneous Dirichlet boundary condition on the FULL exterior boundary
+  (including the inner hole boundary for obstacle/annulus) -- a real
+  `dolfinx.fem.petsc.LinearProblem` assembled and solved on the imported
+  mesh's true cells, not the unit square every other study in this
+  investigation uses.
+
+  This is an ADVANCED, showcase-tier study: it is the investigation's only
+  demonstration that the FEniCSx bridge works on genuinely non-trivial,
+  gmsh-generated domain topologies (a hole, a re-entrant corner, a
+  multiply-connected ring), not just the unit square's built-in structured
+  triangulation every other study relies on.
+
+baseline:
+- name: complex-geometry-baseline
+  composite: viva_fenics.composites.complex_geometry.complex_geometry
+  params:
+    geometry: obstacle
+    resolution: 32
+
+variants:
+- name: lshape
+  base_composite: complex-geometry-baseline
+  parameter_overrides:
+    geometry: lshape
+- name: annulus
+  base_composite: complex-geometry-baseline
+  parameter_overrides:
+    geometry: annulus
+
+expected_behavior:
+- name: mesh-imports-with-positive-cells
+  en: "Each of the three gmsh geometries (obstacle, lshape, annulus) imports into a dolfinx mesh with more than 20 cells at resolution=32."
+  observable: n_cells
+  condition: n_cells(geometry) > 20 for every geometry
+  rationale: >-
+    A real gmsh triangulation of any of these domains at resolution=32
+    (target element size h=1/32) should produce hundreds of triangles; a
+    near-zero or trivial cell count would indicate a degenerate/empty
+    geometry was silently imported (e.g. a failed boolean cut).
+  measure:
+    kind: derived_scalar
+    field: min_n_cells_across_geometries
+  expect:
+    op: ">"
+    value: 20
+- name: solution-finite-bounded-nontrivial
+  en: "The Poisson solution on each geometry is finite everywhere, non-negative everywhere (maximum principle), and reaches a max value above 1e-6 (non-trivially nonzero) and below 1.0 (bounded)."
+  observable: solution
+  condition: 1e-6 < max(solution) < 1.0 and min(solution) > -1e-8 and all(isfinite(solution)) for every geometry
+  rationale: >-
+    -Laplacian(u) = 1 with u=0 on the boundary has a smooth, bounded,
+    strictly-positive-interior solution by the maximum principle for any
+    of these domains; a NaN/Inf, an all-zero solution, or a negative value
+    would indicate the boundary condition or the imported mesh's
+    orientation/connectivity was broken.
+  measure:
+    kind: derived_scalar
+    field: min_solution_max_across_geometries
+  expect:
+    op: ">"
+    value: 1.0e-6
+
+behavior_tests:
+- name: mesh-imports-with-positive-cells
+  classification: primary
+  description: |
+    n_cells (the imported dolfinx mesh's local cell count, read directly
+    off `domain.topology.index_map(tdim).size_local`, not estimated) for
+    EVERY one of the three geometries (obstacle, lshape, annulus) at
+    resolution=32 must exceed 20.
+  measure:
+    kind: derived_scalar
+    field: min_n_cells_across_geometries
+  pass_if:
+    op: ">"
+    value: 20
+    provenance:
+      kind: calibration
+      note: >-
+        Observed cell counts at resolution=32 run in the low thousands for
+        all three geometries (see studies/complex-geometry/sims/run.py's
+        printed summary); 20 is a generous floor that only fails on a
+        genuinely degenerate/empty import, not on any real triangulation
+        density.
+  requires_simulation: complex-geometry-baseline
+- name: solution-finite-bounded-nontrivial
+  classification: primary
+  description: |
+    For every one of the three geometries, the Poisson solution
+    (-Laplacian(u)=1, u=0 on the full boundary) must be finite everywhere,
+    non-negative everywhere, and reach a max value strictly between 1e-6
+    and 1.0.
+  measure:
+    kind: derived_scalar
+    field: min_solution_max_across_geometries
+  pass_if:
+    op: ">"
+    value: 1.0e-6
+    provenance:
+      kind: theory
+      note: >-
+        The maximum principle for -Laplacian(u)=const>0 with u=0 on the
+        boundary guarantees a smooth, non-negative, interior-peaked
+        solution on any of these domains; a solution that is all-zero,
+        negative anywhere, or non-finite indicates a broken boundary
+        condition or a corrupted imported mesh, not solver noise.
+  requires_simulation: complex-geometry-baseline
+- name: solution-stays-bounded
+  classification: supporting
+  description: |
+    The Poisson solution's max value on every geometry must stay below 1.0
+    -- no blow-up from a malformed imported mesh (e.g. inverted-orientation
+    cells corrupting the stiffness-matrix assembly).
+  measure:
+    kind: derived_scalar
+    field: max_solution_max_across_geometries
+  pass_if:
+    op: "<"
+    value: 1.0
+    provenance:
+      kind: calibration
+      note: >-
+        Observed peak solution values at resolution=32 sit around
+        0.01-0.04 across all three geometries (see run.py's printed
+        summary); 1.0 leaves two orders of magnitude of headroom while
+        still catching a genuine assembly/orientation blow-up.
+  requires_simulation: complex-geometry-baseline
+
+pipeline_gate:
+  prerequisites:
+  - study: poisson-validation
+    condition: tests-passed
+  enables: []
+  proceed_condition: |
+    No further studies in this investigation currently depend on
+    complex-geometry; it is the investigation's non-trivial-domain
+    showcase, built directly on the validated dolfinx bridge
+    (poisson-validation) rather than on the scalar diffusion/reaction
+    studies -- it needs a correct FEM solve, not the transient stores this
+    investigation's other advanced studies build on.
+
+canonical_runs:
+- name: default
+  script: studies/complex-geometry/sims/run.py
+  args: []
+  label: "Poisson solve on gmsh-generated obstacle/L-shape/annulus domains (resolution=32)"
+  default: true
+
+visualizations:
+- name: field-heatmap-obstacle
+  chart: viz/field_obstacle.html
+  render: "python sims/run.py"
+- name: mesh3d
+  chart: viz/mesh3d.html
+  render: "python sims/run.py"
+
+conclusion: null

@@ -9,7 +9,7 @@ from . import flow as _flow_module  # noqa: F401
 from . import moving_boundary as _moving_boundary_module  # noqa: F401
 from . import complex_geometry as _complex_geometry_module  # noqa: F401
 from . import amr as _amr_module  # noqa: F401
-from .poisson import poisson_baseline
+from .poisson import poisson_baseline, high_order_verification
 from .diffusion import transient_diffusion
 from .reaction_diffusion import reaction_diffusion
 from .turing_patterns import turing_patterns
@@ -21,6 +21,7 @@ from .amr import adaptive_refinement
 
 __all__ = [
     "poisson_baseline",
+    "high_order_verification",
     "transient_diffusion",
     "reaction_diffusion",
     "turing_patterns",

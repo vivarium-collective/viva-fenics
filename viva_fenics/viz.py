@@ -691,6 +691,132 @@ def convergence_loglog_compare_html(series, title="Convergence: uniform vs adapt
 
 
 # ---------------------------------------------------------------------------
+# 3a-2. convergence_loglog_multi_order_html
+# ---------------------------------------------------------------------------
+
+def _reference_slope_triangle(fig, h_series, err_series, rate, color, meta):
+    """Add a small log-log reference-slope triangle (dotted) near a series'
+    coarsest two points, showing the THEORETICAL optimal rate for visual
+    comparison against the series' own observed/fitted line -- distinct
+    from the fitted dashed line (which is fit TO the data and so trivially
+    tracks whatever the data does); this triangle is anchored to a fixed
+    `rate` independent of the data, e.g. the textbook optimal L2 rate
+    degree+1.
+    """
+    if len(h_series) < 2:
+        return
+    x0 = float(h_series[-2])
+    x1 = float(h_series[-1])
+    # Lift the triangle above the series' own curve so it doesn't overlap
+    # the observed markers/line.
+    y_at_x0 = float(err_series[np.argmin(np.abs(np.asarray(h_series) - x0))])
+    lift = 2.4
+    y0 = y_at_x0 * lift
+    y1 = y0 * (x1 / x0) ** rate
+    fig.add_trace(
+        go.Scatter(
+            x=[x0, x1, x1, x0],
+            y=[y0, y0, y1, y0],
+            mode="lines",
+            meta=meta,
+            line=dict(color=color, width=1, dash="dot"),
+            opacity=0.6,
+            hoverinfo="skip",
+            showlegend=False,
+        )
+    )
+    fig.add_annotation(
+        x=x1 * 1.12,
+        y=(y0 * y1) ** 0.5,
+        xref="x",
+        yref="y",
+        text=f"theory {rate:g}",
+        showarrow=False,
+        font=dict(size=10, color=color),
+        xanchor="left",
+    )
+
+
+def convergence_loglog_multi_order_html(
+    series, reference_rates, title="Convergence", x_label="h (mesh size)", y_label="L2 error"
+):
+    """Log-log error-vs-h plot comparing MULTIPLE element orders (e.g. P1,
+    P2, P3 Lagrange), each with its own fitted-slope annotation AND a
+    dotted reference triangle for its theoretical optimal rate -- the
+    high-order-accuracy-verification extension of
+    ``convergence_loglog_compare_html`` (kept separate so that function's
+    existing signature/callers -- and its "energy-norm error" y-axis
+    framing -- are undisturbed; this one is genuinely L2-error-flavored and
+    needs the reference-triangle overlay compare_html doesn't have).
+
+    Args:
+        series: dict of {label: (h, errors)} -- each value a pair of
+            equal-length 1D sequences, plotted in insertion order and
+            colored by the dataviz categorical palette (``SERIES``). The
+            fitted slope shown per series is a real least-squares fit
+            (``np.polyfit``) over ALL points passed for that series.
+        reference_rates: dict of {label: theoretical_rate} -- same keys as
+            `series`; draws one dotted reference triangle per series at its
+            theoretical optimal rate (e.g. {"P1": 2, "P2": 3, "P3": 4}).
+        title: card title.
+        x_label: x-axis title.
+        y_label: y-axis title (e.g. "L2 error").
+    """
+    fig = go.Figure()
+    slopes = {}
+    for i, (label, (h_vals, err_vals)) in enumerate(series.items()):
+        h_vals = np.asarray(h_vals, dtype=float)
+        err_vals = np.asarray(err_vals, dtype=float)
+        order = np.argsort(h_vals)
+        h_s, e_s = h_vals[order], err_vals[order]
+
+        slope, intercept = np.polyfit(np.log(h_s), np.log(e_s), 1)
+        slopes[label] = float(slope)
+        fit_e = np.exp(intercept) * h_s**slope
+
+        color = SERIES[i % len(SERIES)]
+        fig.add_trace(
+            go.Scatter(
+                x=h_s, y=e_s, mode="markers+lines", name=f"{label} (observed)",
+                meta=f"series-{i + 1}",
+                line=dict(color=color, width=2),
+                marker=dict(size=9, color=color, line=dict(width=2, color="#fcfcfb")),
+                hovertemplate=f"{label}<br>h=%{{x:.4g}}<br>error=%{{y:.4g}}<extra></extra>",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=h_s, y=fit_e, mode="lines", name=f"{label} fit (rate {slope:.2f})",
+                meta=f"series-{i + 1}",
+                line=dict(color=color, width=2, dash="dash"),
+                hoverinfo="skip",
+            )
+        )
+        if label in reference_rates:
+            _reference_slope_triangle(
+                fig, h_s, e_s, reference_rates[label], color, meta=f"series-{i + 1}"
+            )
+
+    annotation_lines = "<br>".join(
+        f"{label}: rate ≈ {s:.2f} (theory {reference_rates.get(label, '?')})"
+        for label, s in slopes.items()
+    )
+    fig.add_annotation(
+        xref="paper", yref="paper", x=0.02, y=0.02, xanchor="left", yanchor="bottom",
+        showarrow=False, text=annotation_lines,
+        font=dict(size=13, color="#52514e"), bgcolor="rgba(0,0,0,0)", align="left",
+    )
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(title=dict(text=x_label, font=dict(color="#52514e")), type="log"),
+        yaxis=dict(title=dict(text=y_label, font=dict(color="#52514e")), type="log"),
+        legend=dict(font=dict(color="#52514e")),
+        margin=dict(l=70, r=30, t=50, b=50),
+    )
+    return _finish(fig, height=480)
+
+
+# ---------------------------------------------------------------------------
 # 3b. coefficient_timeseries_html
 # ---------------------------------------------------------------------------
 

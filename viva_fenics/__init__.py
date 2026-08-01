@@ -8,7 +8,7 @@ from viva_fenics.processes.flow import NavierStokesProcess, CylinderFlowProcess
 from viva_fenics.processes.moving_boundary import MovingBoundaryProcess
 from viva_fenics.processes.complex_geometry import ComplexGeometryStep
 from viva_fenics.processes.amr import AdaptiveRefinementStep
-from viva_fenics.composites.poisson import poisson_baseline
+from viva_fenics.composites.poisson import poisson_baseline, high_order_verification
 from viva_fenics.composites.diffusion import transient_diffusion
 from viva_fenics.composites.reaction_diffusion import reaction_diffusion
 from viva_fenics.composites.convergence import mesh_convergence
@@ -28,6 +28,7 @@ __all__ = [
     "ComplexGeometryStep",
     "AdaptiveRefinementStep",
     "poisson_baseline",
+    "high_order_verification",
     "transient_diffusion",
     "reaction_diffusion",
     "mesh_convergence",

@@ -34,6 +34,25 @@ def test_convergence_loglog_html_reports_fitted_slope():
     assert "log" in html.lower()
 
 
+def test_convergence_loglog_multi_order_html():
+    h = [1 / 8, 1 / 16, 1 / 32, 1 / 64]
+    series = {
+        "P1": (h, [1.2e-2, 3.0e-3, 7.6e-4, 1.9e-4]),
+        "P2": (h, [1.7e-4, 2.1e-5, 2.6e-6, 3.2e-7]),
+        "P3": (h, [3.4e-6, 2.1e-7, 1.3e-8, 8.3e-10]),
+    }
+    reference_rates = {"P1": 2, "P2": 3, "P3": 4}
+    html = viz.convergence_loglog_multi_order_html(series, reference_rates, title="High-order verification")
+    assert "plotly" in html.lower() and len(html) > 500
+    assert "High-order verification" in html
+    # fitted rates for each order should show up close to their theory value
+    assert "2.0" in html or "1.9" in html
+    assert "3.0" in html or "2.9" in html
+    assert "4.0" in html or "3.9" in html
+    # reference-triangle theory labels present for all three orders
+    assert "theory 2" in html and "theory 3" in html and "theory 4" in html
+
+
 def test_field_animation_html():
     coords = np.random.rand(25, 2)
     frames = [np.random.rand(25) for _ in range(4)]
@@ -78,6 +97,7 @@ def test_mesh3d_html_with_times_includes_slider():
     "field_heatmap_html",
     "field_animation_html",
     "convergence_loglog_html",
+    "convergence_loglog_multi_order_html",
     "quiver_streamlines_html",
     "mesh3d_html",
 ])

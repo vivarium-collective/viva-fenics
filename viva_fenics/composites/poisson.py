@@ -48,3 +48,57 @@ def poisson_baseline(core=None, *, resolution=16, degree=2):
             },
         },
     }
+
+
+@composite_generator(
+    name="high_order_verification",
+    description=(
+        "High-order accuracy verification: a single (degree, resolution) "
+        "point of the P1/P2/P3 optimal-L2-rate sweep on the smooth "
+        "sin(pi*x)*sin(pi*y) manufactured solution."
+    ),
+    parameters={
+        "resolution": {"type": "integer", "default": 32,
+                        "description": "Mesh cells per side of the unit square"},
+        "degree": {"type": "integer", "default": 2,
+                    "description": "Lagrange element polynomial degree"},
+    },
+)
+def high_order_verification(core=None, *, degree=2, resolution=32):
+    """Canonical baseline composite for the poisson-validation study: one
+    (degree, resolution) point of `PoissonSolverStep`'s `smooth_trig`
+    manufactured-solution problem. The full P1/P2/P3 x resolution sweep
+    that fits and verifies each degree's convergence RATE lives in the
+    study's `sims/run.py` (same convention as mesh-convergence's
+    uniform-vs-adaptive sweep) -- this generator only needs to expose a
+    real, buildable composite id for the study.
+    """
+    return {
+        "poisson": {
+            "_type": "step",
+            "address": "local:PoissonSolverStep",
+            "config": {
+                "resolution": resolution,
+                "degree": degree,
+                "problem": "smooth_trig",
+            },
+            "inputs": {},
+            "outputs": {
+                "solution": ["stores", "solution"],
+                "l2_error": ["stores", "l2_error"],
+            },
+        },
+        "stores": {
+            "solution": [],
+            "l2_error": 0.0,
+        },
+        "emitter": {
+            "_type": "step",
+            "address": "local:RAMEmitter",
+            "config": {"emit": {"solution": "array[float]", "l2_error": "float"}},
+            "inputs": {
+                "solution": ["stores", "solution"],
+                "l2_error": ["stores", "l2_error"],
+            },
+        },
+    }

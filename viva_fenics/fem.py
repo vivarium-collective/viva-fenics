@@ -146,6 +146,50 @@ def field_integral(domain, V, array):
     return float(domain.comm.allreduce(local, op=MPI.SUM))
 
 
+def l2_error_exact(domain, V, uh_array, exact_ufl_fn, quadrature_degree=None):
+    """Compute the L2 error between a nodal solution and a SYMBOLIC exact
+    expression, at elevated quadrature -- for high-order accuracy
+    verification, where interpolating the exact solution into the same
+    degree-p trial space first (as `l2_error` does) would understate the
+    true error: it measures ||uh - I_p(u)|| (distance between two
+    degree-p objects) rather than ||uh - u||, silently discarding exactly
+    the higher-order information a convergence-rate check needs. Here `u`
+    is built as a real UFL expression via `ufl.SpatialCoordinate(domain)`
+    (e.g. `ufl.sin`), so the error form can be integrated at a quadrature
+    degree well above V's polynomial degree instead.
+
+    Args:
+        domain: dolfinx mesh.
+        V: dolfinx function space over domain.
+        uh_array: nodal values, e.g. returned by solve_poisson.
+        exact_ufl_fn: callable(x) -> UFL expression, where x is
+            `ufl.SpatialCoordinate(domain)` (NOT a numpy callable like
+            `l2_error`'s `exact_fn` -- this one builds symbolic UFL, e.g.
+            ``lambda x: ufl.sin(ufl.pi * x[0]) * ufl.sin(ufl.pi * x[1])``).
+        quadrature_degree: quadrature metadata degree; defaults to
+            ``2 * (degree + 3)``, comfortably resolving a smooth
+            trigonometric manufactured solution without becoming the
+            accuracy bottleneck at any of P1/P2/P3.
+
+    Returns:
+        L2 norm of (uh - u_exact) as a float.
+    """
+    uh = fem.Function(V)
+    uh.x.array[:] = uh_array
+
+    x = ufl.SpatialCoordinate(domain)
+    u_exact = exact_ufl_fn(x)
+
+    degree = V.element.basix_element.degree
+    if quadrature_degree is None:
+        quadrature_degree = 2 * (degree + 3)
+    dx_q = ufl.dx(metadata={"quadrature_degree": quadrature_degree})
+
+    error_form = fem.form((uh - u_exact) ** 2 * dx_q)
+    error_local = fem.assemble_scalar(error_form)
+    return float(np.sqrt(domain.comm.allreduce(error_local, op=MPI.SUM)))
+
+
 def node_coords(V):
     """Return dof coordinates for V, shape (N, 2)."""
     return V.tabulate_dof_coordinates()[:, :2]

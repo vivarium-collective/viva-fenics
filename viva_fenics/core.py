@@ -24,6 +24,7 @@ from .processes.reaction import (
 )
 from .processes.flow import NavierStokesProcess, CylinderFlowProcess, PorousFlowStep
 from .processes.moving_boundary import MovingBoundaryProcess
+from .processes.peristalsis import PeristalticWallProcess, PeristalticFlowProcess
 from .processes.complex_geometry import ComplexGeometryStep
 from .processes.amr import AdaptiveRefinementStep
 from .types import register_types
@@ -39,6 +40,8 @@ _PROCESSES = (
     ("CylinderFlowProcess", CylinderFlowProcess),
     ("PorousFlowStep", PorousFlowStep),
     ("MovingBoundaryProcess", MovingBoundaryProcess),
+    ("PeristalticWallProcess", PeristalticWallProcess),
+    ("PeristalticFlowProcess", PeristalticFlowProcess),
     ("ComplexGeometryStep", ComplexGeometryStep),
     ("AdaptiveRefinementStep", AdaptiveRefinementStep),
 )

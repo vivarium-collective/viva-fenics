@@ -423,6 +423,125 @@ def field_animation_html(coords, frames, times, title, n=90):
 
 
 # ---------------------------------------------------------------------------
+# 2a. field_animation_with_wall_envelope_html
+# ---------------------------------------------------------------------------
+
+def field_animation_with_wall_envelope_html(
+    coords, frames, times, x_wall, wall_top_frames, wall_bottom_frames, title, n=90,
+):
+    """``field_animation_html`` (see its docstring for the grid-interpolation
+    / size-budget mechanics) PLUS two per-frame line traces overlaying the
+    TRUE (deformed) top/bottom wall boundary -- for a moving-mesh study
+    where the field animation itself must stay at FIXED reference node
+    positions (``field_animation_html`` has no per-frame-coordinate
+    support; see its docstring), so the wall-envelope overlay is the only
+    part of the animation that visibly moves, honestly conveying the real
+    traveling-wave deformation the color-encoded field values were computed
+    on top of (see ``studies/moving-boundary/sims/run.py``'s viz docstring
+    for the full caveat).
+
+    Args:
+        coords: (N, 2) REFERENCE dof coordinates the field is plotted at
+            (shared across all frames, same convention as
+            ``field_animation_html``).
+        frames: sequence of (N,) field-value arrays, one per frame.
+        times: sequence of time labels, one per frame.
+        x_wall: (M,) shared x-sample coordinates for the wall curves.
+        wall_top_frames, wall_bottom_frames: sequence of (M,) y-coordinate
+            arrays (one per frame) giving the TRUE current top/bottom wall
+            position at each ``x_wall`` sample.
+        title: card title.
+        n: interpolation grid resolution (see ``field_animation_html``).
+    """
+    frames = [np.asarray(f, dtype=float) for f in frames]
+    times = list(times)
+    x_wall = np.asarray(x_wall, dtype=float)
+
+    xi = yi = None
+    zis = []
+    for f in frames:
+        xi, yi, zi = _interpolate_to_grid(coords, f, n=n)
+        zis.append(zi)
+
+    vmin = float(np.nanmin([np.nanmin(z) for z in zis]))
+    vmax = float(np.nanmax([np.nanmax(z) for z in zis]))
+    if vmax <= vmin:
+        vmax = vmin + 1e-9
+
+    def _contour(zi):
+        return go.Contour(
+            x=xi, y=yi, z=zi, coloraxis="coloraxis",
+            contours=dict(coloring="heatmap", showlines=False),
+            connectgaps=False,
+            hovertemplate="x=%{x:.3f}<br>y=%{y:.3f}<br>value=%{z:.4g}<extra></extra>",
+        )
+
+    def _wall_trace(y_vals, name, color):
+        return go.Scatter(
+            x=x_wall, y=np.asarray(y_vals, dtype=float), mode="lines", meta="series-1",
+            line=dict(width=3, color=color), hoverinfo="skip", showlegend=False, name=name,
+        )
+
+    WALL_COLOR = "#0b0b0b"
+    frame_names = [f"{t:.6g}" for t in times]
+    fig_frames = [
+        go.Frame(
+            data=[_contour(zi), _wall_trace(top, "wall (top)", WALL_COLOR), _wall_trace(bottom, "wall (bottom)", WALL_COLOR)],
+            name=name,
+        )
+        for zi, top, bottom, name in zip(zis, wall_top_frames, wall_bottom_frames, frame_names)
+    ]
+    fig = go.Figure(
+        data=[_contour(zis[0]), _wall_trace(wall_top_frames[0], "wall (top)", WALL_COLOR),
+              _wall_trace(wall_bottom_frames[0], "wall (bottom)", WALL_COLOR)],
+        frames=fig_frames,
+    )
+
+    slider_steps = [
+        dict(
+            label=f"{t:.4g}", method="animate",
+            args=[[name], dict(mode="immediate", frame=dict(duration=0, redraw=True), transition=dict(duration=0))],
+        )
+        for t, name in zip(times, frame_names)
+    ]
+
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        coloraxis=dict(
+            colorscale=_seq_colorscale(), cmin=vmin, cmax=vmax,
+            colorbar=dict(title=dict(text="value", font=dict(color="#52514e")), outlinewidth=0),
+        ),
+        xaxis=dict(title=dict(text="x", font=dict(color="#52514e")), scaleanchor="y", constrain="domain"),
+        yaxis=dict(title=dict(text="y", font=dict(color="#52514e"))),
+        margin=dict(l=60, r=30, t=50, b=90),
+        updatemenus=[
+            dict(
+                type="buttons", direction="left", x=0.02, y=-0.18, xanchor="left", yanchor="top",
+                showactive=False,
+                buttons=[
+                    dict(
+                        label="▶ Play", method="animate",
+                        args=[None, dict(frame=dict(duration=400, redraw=True), fromcurrent=True, transition=dict(duration=0))],
+                    ),
+                    dict(
+                        label="⏸ Pause", method="animate",
+                        args=[[None], dict(mode="immediate", frame=dict(duration=0, redraw=False), transition=dict(duration=0))],
+                    ),
+                ],
+            )
+        ],
+        sliders=[
+            dict(
+                active=0, x=0.02, len=0.94, pad=dict(t=40),
+                currentvalue=dict(prefix="t = ", font=dict(color="#52514e")),
+                font=dict(color="#898781"), steps=slider_steps,
+            )
+        ],
+    )
+    return _finish(fig, height=560)
+
+
+# ---------------------------------------------------------------------------
 # 2b. mesh_wireframe_animation_html
 # ---------------------------------------------------------------------------
 
@@ -858,6 +977,63 @@ def coefficient_timeseries_html(times, series, title, y_label="value"):
         margin=dict(l=70, r=30, t=50, b=50),
     )
     return _finish(fig, height=420)
+
+
+# ---------------------------------------------------------------------------
+# 3b-2. scalar_sweep_html
+# ---------------------------------------------------------------------------
+
+def scalar_sweep_html(x, y, title, x_label="parameter", y_label="value", annotation=None):
+    """Bar + line chart of a single derived scalar (e.g. net flow rate Q)
+    against a swept parameter (e.g. occlusion amplitude) -- for a small
+    (often 3-5 point) parameter sweep where ``convergence_loglog_html``'s
+    log-log-with-fitted-slope framing doesn't apply (the sweep may include
+    zero/negative-adjacent values, or the relationship isn't expected to be
+    a power law).
+
+    Args:
+        x: (N,) swept parameter values.
+        y: (N,) the resulting derived scalar at each x.
+        title: card title.
+        x_label, y_label: axis titles.
+        annotation: optional preformatted string (e.g. "Q increases
+            monotonically with amplitude") placed in the top-left corner.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    order = np.argsort(x)
+    x_s, y_s = x[order], y[order]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=x_s, y=y_s, marker=dict(color=SERIES[0], line=dict(width=0)),
+            opacity=0.55, hoverinfo="skip", showlegend=False, name="bar",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x_s, y=y_s, mode="markers+lines", meta="series-1",
+            line=dict(color=SERIES[0], width=2),
+            marker=dict(size=10, color=SERIES[0], line=dict(width=2, color="#fcfcfb")),
+            hovertemplate=f"{x_label}=%{{x:.4g}}<br>{y_label}=%{{y:.4g}}<extra></extra>",
+            showlegend=False, name="value",
+        )
+    )
+    if annotation:
+        fig.add_annotation(
+            xref="paper", yref="paper", x=0.02, y=0.96, xanchor="left", yanchor="top",
+            showarrow=False, text=annotation,
+            font=dict(size=13, color="#52514e"), bgcolor="rgba(0,0,0,0)", align="left",
+        )
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(title=dict(text=x_label, font=dict(color="#52514e")), type="category" if len(x_s) <= 8 else "linear"),
+        yaxis=dict(title=dict(text=y_label, font=dict(color="#52514e"))),
+        margin=dict(l=70, r=30, t=50, b=50),
+        bargap=0.5,
+    )
+    return _finish(fig, height=380)
 
 
 # ---------------------------------------------------------------------------

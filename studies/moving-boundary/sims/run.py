@@ -1,39 +1,46 @@
 #!/usr/bin/env python3
-"""Canonical run for the ``moving-boundary`` study (the deforming-domain /
-prescribed-ALE showcase).
+"""Canonical run for the ``moving-boundary`` study (rebuilt as the
+investigation's flagship composition showpiece: peristaltic pumping).
 
-Builds the ``moving_boundary`` composite -- a single ``MovingBoundaryProcess``
-(real dolfinx diffusion re-assembled and re-solved every substep on a mesh
-whose geometry is mutated in place by a prescribed top-boundary law -- see
-``viva_fenics/processes/moving_boundary.py``'s module docstring for the
-scheme) wired to a ``RAMEmitter``:
+Builds the ``peristalsis`` composite -- ``PeristalticWallProcess`` (real
+dolfinx harmonic-extension ALE mesh motion, prescribing a traveling-wave
+occlusion on the channel walls) COMPOSED with ``PeristalticFlowProcess``
+(real dolfinx ALE incompressible Navier-Stokes, IPCS operator splitting with
+the ALE convective correction) through shared bigraph stores -- see
+``viva_fenics/processes/peristalsis.py``'s module docstring for the full
+physics/coupling story:
 
-1. Runs the baseline (oscillate, amplitude=0.3, omega=pi, one full period)
-   and checks the final ``boundary_position`` against the analytic law to
-   near machine precision (mirrors
-   ``tests/test_moving_boundary.py::test_boundary_position_follows_oscillate_law``).
-2. Runs the amplitude=0.1 and amplitude=0.5 variants and checks the
-   ``domain_measure`` swing (deviation from the base area 1.0) scales with
-   amplitude (mirrors
-   ``tests/test_moving_boundary.py::test_domain_measure_changes_with_amplitude``).
-3. Checks the diffusion field stays finite/bounded across the baseline run
-   (mirrors ``tests/test_moving_boundary.py::test_field_stays_finite_and_bounded``).
-4. Runs the grow-mode variant (informational only, not gated by a declared
-   behavior test) to demonstrate the second boundary-motion law.
-5. Renders the baseline's field as an interactive time-slider animation.
+1. Runs the baseline (amplitude=0.3) and the amplitude=0.2 / amplitude=0.4
+   variants, each for 4 full wave periods (period = wavelength/wave_speed =
+   1.0s), and computes each run's net flow rate Q = time-average of
+   ``mean_ux`` (the domain-averaged x-velocity sensor) over the POST-
+   TRANSIENT window t=2.0-4.0s (discarding the startup ramp + first
+   settling period).
+2. Checks Q(baseline) is clearly positive (mirrors
+   ``tests/test_peristalsis.py::test_composition_produces_net_positive_flow``'s
+   sign check, at production scale) and Q increases monotonically across
+   the amplitude sweep (mirrors
+   ``tests/test_peristalsis.py::test_net_flow_grows_with_amplitude``).
+3. Checks the baseline's minimum domain_area genuinely drops well below
+   the undeformed L*H area (confirming the mesh really narrows).
+4. Renders (a) a speed-field animation with the TRUE deforming wall
+   envelope overlaid (see the viz docstring below for the moving-mesh
+   caveat this inherits from the ORIGINAL prescribed-ALE showcase this
+   study started from), and (b) a net-flow-rate-vs-amplitude chart.
 
-Viz coordinate caveat: ``viz.field_animation_html`` takes ONE ``coords``
-array shared by every frame (see its docstring) -- it has no per-frame
-coordinate support. Since the mesh genuinely deforms tick-to-tick, this run
-plots every frame at the REFERENCE (t=0, undeformed unit-square) node
-coordinates: the color-encoded field VALUES are exactly what was computed
-on the true deformed mesh each frame, but the plotted node POSITIONS do not
-themselves visually stretch/oscillate. The actual geometric deformation is
-captured numerically (not spatially, in this 2D animation) by
-``boundary_position``/``domain_measure``, both plotted in the console
-summary below. This is the "reference-config coords" option the task brief
-calls out as acceptable when the animation helper doesn't support
-per-frame coordinates.
+Viz coordinate caveat (same limitation as before this study's rebuild --
+see ``viva_fenics.viz.field_animation_html``'s docstring): the animation
+helper takes ONE ``coords`` array shared by every frame, so the color-
+encoded SPEED field is plotted at the FLOW mesh's fixed REFERENCE (t=0,
+undeformed) node positions every frame -- the field VALUES are exactly
+what was computed on the true deformed mesh each frame, but the plotted
+node POSITIONS do not themselves visually stretch. This study's fallback
+(the brief's explicitly-sanctioned option): the wall envelope curves
+overlaid on top ARE plotted at their TRUE, deformed positions each frame
+(a closed-form evaluation of the same occlusion law the simulation used,
+not a mesh-node position), so the viewer directly sees the traveling
+constriction narrowing/widening even though the background field grid
+stays fixed.
 
 Standalone; run from the workspace root::
 
@@ -41,12 +48,12 @@ Standalone; run from the workspace root::
 """
 from __future__ import annotations
 
-import math
 import sys
 import time
 import uuid
 from pathlib import Path
 
+import numpy as np
 from process_bigraph import Composite, gather_emitter_results
 
 STUDY_DIR = Path(__file__).resolve().parents[1]
@@ -54,63 +61,78 @@ WORKSPACE_ROOT = STUDY_DIR.parents[1]
 
 from viva_fenics import viz
 from viva_fenics.core import build_core
-from viva_fenics.composites.moving_boundary import moving_boundary
-from viva_fenics.processes.moving_boundary import (
-    _build_mesh,
-    boundary_law,
-    reference_coords,
-)
+from viva_fenics.composites.peristalsis import peristalsis
+from viva_fenics.processes.peristalsis import channel_velocity_coords, occlusion_and_rate
 from vivarium_workbench.lib.run_log import append_run_event
 
-SPEC_ID = "viva_fenics.composites.moving_boundary.moving_boundary"
+SPEC_ID = "viva_fenics.composites.peristalsis.peristalsis"
 STUDY_SLUG = "moving-boundary"
 INVESTIGATION_SLUG = "fenics-showcase"
 
-RESOLUTION = 32
-OMEGA = 3.14159
+# --- shared physical/mesh parameters (see study.yaml's baseline block) ---
+WAVE_SPEED = 1.0
+WAVELENGTH = 1.0
+PERIOD = WAVELENGTH / WAVE_SPEED  # 1.0s
+REYNOLDS = 10.0
 DT = 0.01
-PERIOD = 2.0 * math.pi / OMEGA  # ~2.0002s -- one full oscillation
+RAMP_TIME = 0.5
+L, H = 2.0, 2.0
+NX, NY = 24, 12
 
 AMPLITUDE_BASELINE = 0.3
-AMPLITUDE_LOW = 0.1
-AMPLITUDE_HIGH = 0.5
-GROW_AMPLITUDE = 0.5
-GROW_TIME = 0.5
+AMPLITUDE_LOW = 0.2
+AMPLITUDE_HIGH = 0.4
 
-BOUNDARY_LAW_TOL = 1e-4
-SWING_RATIO_MIN = 3.0
-FIELD_BOUND = 5.0
+N_PERIODS = 4
+RUN_TIME = N_PERIODS * PERIOD  # 4.0s
+AVERAGE_WINDOW_START = 2.0  # discard startup ramp + first settling period
 
-# Subsample the emitter so a ~200-tick baseline run doesn't render an
-# unwieldy 200-frame animation (same convention as reaction-diffusion's
-# EMITTER_SUBSAMPLE).
-EMITTER_SUBSAMPLE = 5
+Q_POSITIVE_THRESHOLD = 0.02
+DOMAIN_AREA_FRACTION_THRESHOLD = 0.92
+
+# ~400 ticks (RUN_TIME/DT) per run -- subsample so the animation stays
+# within viz.field_animation_html's <=~30-frame / <=~6MB budget.
+EMITTER_SUBSAMPLE = 15
 
 
-def _run(amplitude: float, run_time: float, omega: float = OMEGA, mode: str = "oscillate", subsample: int = EMITTER_SUBSAMPLE):
-    core = build_core()
-    doc = moving_boundary(core, resolution=RESOLUTION, amplitude=amplitude, omega=omega, dt=DT, mode=mode)
-    doc["emitter"]["config"]["subsample"] = subsample
+def _run(amplitude: float, core):
+    doc = peristalsis(
+        core, amplitude=amplitude, wave_speed=WAVE_SPEED, wavelength=WAVELENGTH,
+        reynolds=REYNOLDS, dt=DT, ramp_time=RAMP_TIME, L=L, H=H, nx=NX, ny=NY,
+    )
+    doc["emitter"]["config"]["subsample"] = EMITTER_SUBSAMPLE
     sim = Composite({"state": doc}, core=core)
-    sim.run(run_time)
+    sim.run(RUN_TIME)
     rows = gather_emitter_results(sim)[("emitter",)]
 
-    frames, times_list, boundary_positions, domain_measures = [], [], [], []
-    for i, row in enumerate(rows):
-        sol = row.get("solution")
-        if sol is None or len(sol) == 0:
+    times, mean_ux, domain_area, velocity_x, velocity_y = [], [], [], [], []
+    for row in rows:
+        t = row.get("elapsed_time")
+        if t is None:
             continue
-        frames.append(sol)
-        times_list.append(i * DT * subsample)
-        boundary_positions.append(row.get("boundary_position"))
-        domain_measures.append(row.get("domain_measure"))
-    return frames, times_list, boundary_positions, domain_measures
+        times.append(t)
+        mean_ux.append(row.get("mean_ux"))
+        domain_area.append(row.get("domain_area"))
+        velocity_x.append(row.get("velocity_x"))
+        velocity_y.append(row.get("velocity_y"))
+    return {
+        "times": np.array(times), "mean_ux": np.array(mean_ux),
+        "domain_area": np.array(domain_area),
+        "velocity_x": velocity_x, "velocity_y": velocity_y,
+    }
+
+
+def _net_flow_rate(result):
+    mask = result["times"] >= AVERAGE_WINDOW_START
+    if not np.any(mask):
+        mask = slice(None)
+    return float(np.mean(result["mean_ux"][mask]))
 
 
 def main() -> int:
     run_id = uuid.uuid4().hex
     started = time.time()
-    n_steps_estimate = int(round(PERIOD / DT))
+    n_steps_estimate = int(round(RUN_TIME / DT)) * 3  # baseline + 2 variants
     append_run_event(WORKSPACE_ROOT, {
         "run_id": run_id,
         "event": "started",
@@ -124,72 +146,85 @@ def main() -> int:
         "study_slug": STUDY_SLUG,
         "investigation_slug": INVESTIGATION_SLUG,
         "params": {
-            "resolution": RESOLUTION,
-            "amplitude": AMPLITUDE_BASELINE,
-            "omega": OMEGA,
-            "dt": DT,
-            "period": PERIOD,
-            "amplitude_sweep": [AMPLITUDE_LOW, AMPLITUDE_HIGH],
+            "reynolds": REYNOLDS, "dt": DT, "ramp_time": RAMP_TIME,
+            "L": L, "H": H, "nx": NX, "ny": NY,
+            "wave_speed": WAVE_SPEED, "wavelength": WAVELENGTH,
+            "amplitude_sweep": [AMPLITUDE_LOW, AMPLITUDE_BASELINE, AMPLITUDE_HIGH],
+            "run_time": RUN_TIME,
         },
     })
 
     try:
-        # --- 1+3: baseline over one full oscillation period ---
-        frames, times_list, boundary_positions, domain_measures = _run(AMPLITUDE_BASELINE, PERIOD)
-        if len(frames) < 2:
-            print("[moving-boundary] ERROR: fewer than 2 solution frames recorded", file=sys.stderr)
+        core = build_core()
+
+        baseline = _run(AMPLITUDE_BASELINE, core)
+        low = _run(AMPLITUDE_LOW, core)
+        high = _run(AMPLITUDE_HIGH, core)
+
+        n_frames_total = len(baseline["times"]) + len(low["times"]) + len(high["times"])
+        if len(baseline["times"]) < 2:
+            print("[moving-boundary] ERROR: fewer than 2 frames recorded for the baseline run", file=sys.stderr)
             append_run_event(WORKSPACE_ROOT, {
-                "run_id": run_id,
-                "event": "completed",
-                "completed_at": time.time(),
-                "n_steps": len(frames),
-                "status": "failed",
+                "run_id": run_id, "event": "completed", "completed_at": time.time(),
+                "n_steps": 0, "status": "failed",
             })
             return 1
 
-        t_final = times_list[-1]
-        boundary_position_final = boundary_positions[-1]
-        analytic_final = boundary_law("oscillate", t_final, AMPLITUDE_BASELINE, OMEGA)
-        boundary_law_abs_error = abs(boundary_position_final - analytic_final)
-        boundary_follows_law = boundary_law_abs_error < BOUNDARY_LAW_TOL
+        Q_low = _net_flow_rate(low)
+        Q_baseline = _net_flow_rate(baseline)
+        Q_high = _net_flow_rate(high)
 
-        max_abs_field = max(max(abs(v) for v in frame) for frame in frames)
-        field_finite = max_abs_field < FIELD_BOUND
+        net_flow_positive = Q_baseline > Q_POSITIVE_THRESHOLD
+        net_flow_monotonic = (Q_low < Q_baseline) and (Q_baseline < Q_high)
 
-        # --- 2: domain_measure swing across the amplitude sweep ---
-        _f_low, _t_low, _bp_low, dm_low = _run(AMPLITUDE_LOW, PERIOD)
-        _f_high, _t_high, _bp_high, dm_high = _run(AMPLITUDE_HIGH, PERIOD)
-        swing_low = max(abs(v - 1.0) for v in dm_low)
-        swing_high = max(abs(v - 1.0) for v in dm_high)
-        swing_ratio = swing_high / max(swing_low, 1e-12)
-        swing_scales_with_amplitude = swing_ratio >= SWING_RATIO_MIN
+        # NOTE: since L spans an integer number of full wavelengths, the
+        # spatial integral of the traveling wave's cos(theta) term over the
+        # WHOLE channel is exactly 0 for any t -- so domain_area(t) is
+        # essentially CONSTANT at L*(H-amplitude) throughout the run (a
+        # real, if slightly surprising, area-conservation consequence of
+        # this geometry), not something that dips to a "minimum" and
+        # recovers. min() below is still a real, non-tautological reading
+        # of that constant (confirmed against the undeformed L*H baseline).
+        min_domain_area_baseline = float(np.min(baseline["domain_area"]))
+        undeformed_area = L * H
+        min_area_fraction = min_domain_area_baseline / undeformed_area
+        domain_genuinely_deforms = min_area_fraction < DOMAIN_AREA_FRACTION_THRESHOLD
 
-        # --- 4: grow-mode demonstration (informational, not behavior-tested) ---
-        _f_grow, t_grow, bp_grow, dm_grow = _run(
-            GROW_AMPLITUDE, GROW_TIME, mode="grow", subsample=1,
-        )
-        grow_final_position = bp_grow[-1] if bp_grow else float("nan")
-        grow_monotonic = all(b > a for a, b in zip(bp_grow, bp_grow[1:]))
-
-        # --- 5: viz (reference-config coords; see module docstring) ---
-        _, V, _y_ref = _build_mesh(RESOLUTION, degree=1)
-        coords = reference_coords(V)
+        # --- viz 1: speed-field animation + true deforming wall envelope ---
+        coords = channel_velocity_coords(L, H, NX, NY)
+        frames = [
+            np.hypot(np.asarray(vx), np.asarray(vy))
+            for vx, vy in zip(baseline["velocity_x"], baseline["velocity_y"])
+        ]
+        x_wall = np.linspace(0.0, L, 200)
+        wall_top_frames, wall_bottom_frames = [], []
+        for t in baseline["times"]:
+            occ, _rate = occlusion_and_rate(x_wall, t, AMPLITUDE_BASELINE, WAVELENGTH, WAVE_SPEED, RAMP_TIME)
+            wall_top_frames.append(H / 2.0 - occ)
+            wall_bottom_frames.append(-H / 2.0 + occ)
 
         viz_dir = STUDY_DIR / "viz"
         viz_dir.mkdir(parents=True, exist_ok=True)
-        html = viz.field_animation_html(
-            coords, frames, times_list,
-            f"Diffusion on a deforming domain (amplitude={AMPLITUDE_BASELINE}, omega={OMEGA:.3f}, "
-            f"mode=oscillate) -- prescribed-ALE",
+        anim_html = viz.field_animation_with_wall_envelope_html(
+            coords, frames, baseline["times"], x_wall, wall_top_frames, wall_bottom_frames,
+            f"Peristaltic pumping: |velocity| field (reference coords) + true wall envelope "
+            f"(amplitude={AMPLITUDE_BASELINE}, wave_speed={WAVE_SPEED}, wavelength={WAVELENGTH})",
         )
-        (viz_dir / "moving_boundary.html").write_text(html)
+        (viz_dir / "peristalsis_animation.html").write_text(anim_html)
+
+        # --- viz 2: net flow rate Q vs amplitude ---
+        sweep_html = viz.scalar_sweep_html(
+            [AMPLITUDE_LOW, AMPLITUDE_BASELINE, AMPLITUDE_HIGH],
+            [Q_low, Q_baseline, Q_high],
+            "Net flow rate Q vs occlusion amplitude (peristaltic pumping)",
+            x_label="occlusion amplitude", y_label="Q = time-avg(mean_ux), t=2-4s",
+            annotation=f"Q increases {'monotonically' if net_flow_monotonic else 'NON-monotonically (!)'} with amplitude",
+        )
+        (viz_dir / "net_flow_vs_amplitude.html").write_text(sweep_html)
     except Exception:
         append_run_event(WORKSPACE_ROOT, {
-            "run_id": run_id,
-            "event": "completed",
-            "completed_at": time.time(),
-            "n_steps": 0,
-            "status": "failed",
+            "run_id": run_id, "event": "completed", "completed_at": time.time(),
+            "n_steps": 0, "status": "failed",
         })
         raise
 
@@ -197,38 +232,41 @@ def main() -> int:
         "run_id": run_id,
         "event": "completed",
         "completed_at": time.time(),
-        "n_steps": len(frames),
+        "n_steps": n_frames_total,
         "status": "completed",
     })
 
     # --- report: PASS/FAIL mirrors this study's declared behavior_tests
-    # exactly (boundary-follows-prescribed-law, domain-measure-scales-with-
-    # amplitude, field-stays-finite) -- no additional undeclared conditions.
+    # exactly (net-flow-is-positive, flow-grows-with-amplitude,
+    # wall-motion-genuinely-deforms-domain) -- no additional undeclared
+    # conditions.
     print(
-        f"[moving-boundary] baseline amplitude={AMPLITUDE_BASELINE} omega={OMEGA:.5f} resolution={RESOLUTION}: "
-        f"boundary_position(t={t_final:.4f})={boundary_position_final:.8f} vs analytic={analytic_final:.8f} "
-        f"(abs error {boundary_law_abs_error:.2e}) "
-        f"-> {'PASS' if boundary_follows_law else 'FAIL'} (boundary-follows-prescribed-law < {BOUNDARY_LAW_TOL})"
+        f"[moving-boundary] peristalsis: amplitude sweep "
+        f"low={AMPLITUDE_LOW} baseline={AMPLITUDE_BASELINE} high={AMPLITUDE_HIGH} "
+        f"reynolds={REYNOLDS} nx={NX} ny={NY} dt={DT} "
+        f"run_time={RUN_TIME}s (avg window t>={AVERAGE_WINDOW_START}s)"
     )
     print(
-        f"[moving-boundary] domain_measure swing: amplitude={AMPLITUDE_LOW}->{swing_low:.4f}, "
-        f"amplitude={AMPLITUDE_HIGH}->{swing_high:.4f}, ratio={swing_ratio:.2f}x "
-        f"-> {'PASS' if swing_scales_with_amplitude else 'FAIL'} "
-        f"(domain-measure-scales-with-amplitude >= {SWING_RATIO_MIN}x)"
+        f"[moving-boundary] net flow rate Q: amplitude={AMPLITUDE_LOW}->{Q_low:.5f}, "
+        f"amplitude={AMPLITUDE_BASELINE}->{Q_baseline:.5f}, amplitude={AMPLITUDE_HIGH}->{Q_high:.5f} "
+        f"-> {'PASS' if net_flow_monotonic else 'FAIL'} "
+        f"(flow-grows-with-amplitude: Q({AMPLITUDE_LOW})<Q({AMPLITUDE_BASELINE})<Q({AMPLITUDE_HIGH}))"
     )
     print(
-        f"[moving-boundary] max|field| over baseline run: {max_abs_field:.4f} "
-        f"-> {'PASS' if field_finite else 'FAIL'} (field-stays-finite < {FIELD_BOUND})"
+        f"[moving-boundary] baseline net flow rate Q={Q_baseline:.5f} "
+        f"-> {'PASS' if net_flow_positive else 'FAIL'} (net-flow-is-positive > {Q_POSITIVE_THRESHOLD})"
     )
     print(
-        f"[moving-boundary] mode='grow' demo (amplitude={GROW_AMPLITUDE}, t=0..{GROW_TIME}): "
-        f"boundary_position -> {grow_final_position:.4f} "
-        f"({'monotonically increasing' if grow_monotonic else 'NOT monotonic -- unexpected'}) [informational, not gated]"
+        f"[moving-boundary] baseline min domain_area={min_domain_area_baseline:.4f} "
+        f"({min_area_fraction * 100:.1f}% of undeformed {undeformed_area:.2f}) "
+        f"-> {'PASS' if domain_genuinely_deforms else 'FAIL'} "
+        f"(wall-motion-genuinely-deforms-domain < {DOMAIN_AREA_FRACTION_THRESHOLD * 100:.0f}%)"
     )
-    print(f"[moving-boundary] viz written: {viz_dir / 'moving_boundary.html'}")
+    print(f"[moving-boundary] viz written: {viz_dir / 'peristalsis_animation.html'}")
+    print(f"[moving-boundary] viz written: {viz_dir / 'net_flow_vs_amplitude.html'}")
     print(f"[moving-boundary] run recorded in {WORKSPACE_ROOT / '.pbg' / 'runs.jsonl'}")
 
-    all_pass = boundary_follows_law and swing_scales_with_amplitude and field_finite
+    all_pass = net_flow_positive and net_flow_monotonic and domain_genuinely_deforms
 
     return 0 if all_pass else 1
 

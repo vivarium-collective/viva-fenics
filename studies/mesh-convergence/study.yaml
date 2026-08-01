@@ -1,90 +1,183 @@
 schema_version: 4
 name: mesh-convergence
-title: "Mesh convergence: FEM rigor"
-created: '2026-07-31'
+title: "Adaptive mesh refinement: recovering optimal convergence on a corner singularity"
+created: '2026-08-01'
 status: planned
 phase: Build
 
 question: |
-  Does the `PoissonSolverStep` wrapper deliver the theoretical O(h^2) mesh
-  convergence rate for P1 Lagrange elements, or does the wrapping introduce
-  an artifact that masks/inflates the true discretization error?
+  On the classic L-shaped-domain re-entrant-corner Laplace singularity --
+  where the exact solution's gradient blows up at the corner and UNIFORM
+  refinement is provably capped at a suboptimal convergence rate -- does a
+  real residual-based a posteriori error estimator, driving Doerfler-marked
+  ADAPTIVE refinement, concentrate elements at the corner and recover
+  near-optimal convergence?
 hypothesis: |
-  On a superconvergence-resistant (crossed-diagonal) unit-square mesh, the
-  L2 error of a P1 (degree=1) solve should scale as O(h^2) across a
-  resolution sweep, giving an observed log-log slope near 2.
+  The L-shaped domain's re-entrant corner (interior angle 3*pi/2) has exact
+  harmonic solution u = r^(2/3)*sin(2*theta/3), whose H^(5/3-eps) regularity
+  caps P1 UNIFORM refinement's energy-norm convergence at O(dofs^-1/3)
+  instead of the usual O(dofs^-1/2). A residual-based edge-jump error
+  estimator should produce indicators that spike sharply at the corner
+  (where u_h's piecewise-linear gradient most disagrees with its
+  neighbors), so Doerfler (bulk-chasing) marking on those indicators should
+  concentrate new elements there and recover close to the optimal
+  O(dofs^-1/2) rate despite the singularity.
 objective: |
-  Sweep the `mesh_convergence` composite's `resolution` parameter (8, 16, 32)
-  at fixed polynomial degree 1, fit the L2-error-vs-mesh-size slope on a
-  log-log plot, and confirm the fitted rate matches the theoretical
-  O(h^(degree+1)) convergence order.
+  Run a uniform-refinement sequence and a residual-based adaptive (AMR)
+  sequence from the same coarse initial L-shaped mesh, fit the energy-norm-
+  error-vs-DOFs log-log slope for each, and confirm (a) the adaptive slope
+  is substantially steeper (closer to the optimal -1/2) than the uniform
+  slope (capped near -1/3), and (b) the adaptive mesh's cell density near
+  the re-entrant corner, relative to the far field, grows dramatically
+  relative to the initial mesh -- direct geometric evidence the estimator
+  is doing its job, not just producing a better number by coincidence.
 description: |
-  Reuses `PoissonSolverStep` (as `poisson-validation` does) but at
-  degree=1 and swept over `resolution`, via the `mesh_convergence` composite
-  generator -- one composite build per sweep point (the sweep itself lives
-  in this study's `variants:`/runner, not in the generator, which
-  parameterizes a single (resolution, degree) pair). `fem.build_mesh` uses
-  dolfinx's "crossed" triangulation specifically to avoid a known P1
-  superconvergence artifact on the default "right" diagonal that would
-  collapse the error to round-off at every resolution and mask the true
-  rate.
+  Real dolfinx (0.11.0) throughout -- no faking. `viva_fenics.fem_amr`
+  builds `Omega = [-1,1]^2 \ [0,1]x[-1,0]` via a gmsh OCC boolean cut
+  (re-entrant corner at the ORIGIN, distinct from `fem_gmsh`'s `"lshape"`
+  geometry, whose corner sits at (0.5,0.5) -- this problem needs the corner
+  at the origin to match the closed-form singular solution below) and
+  solves `-Laplacian(u) = 0` (f=0; Laplace, not Poisson) with
+  `u = r^(2/3)*sin(2*theta/3)` (built as a real UFL symbolic expression via
+  `ufl.atan2`/`ufl.sqrt`, not a numpy approximation) imposed as the
+  Dirichlet BC on the full domain boundary.
+
+  The a posteriori error estimator (`fem_amr.error_indicators`) is the
+  standard Verfurth residual estimator's edge-jump term -- for P1 elements
+  with f=0 the interior cell-residual term vanishes identically
+  (`Laplacian(u_h)=0` pointwise for piecewise-linear u_h), so
+  `eta_T^2 = (1/2) * sum_e h_e * ||[[du_h/dn]]||^2_{L2(e)}` over each cell's
+  interior edges is the whole estimator: exactly the jump in u_h's normal
+  derivative across each edge, which should be largest right where the
+  exact solution's true gradient is blowing up (`~r^-1/3`) and a
+  piecewise-linear field is straining hardest to track it.
+
+  `fem_amr.dorfler_mark` implements Doerfler (bulk-chasing) marking: the
+  smallest set of cells whose summed eta_T^2 reaches a `theta=0.5` fraction
+  of the total estimated error. `fem_amr.refine_marked` converts marked
+  cells to their edges (`dolfinx.mesh.compute_incident_entities`) and calls
+  real `dolfinx.mesh.refine(domain, edges=...)` -- dolfinx's Plaza/NVB
+  conforming refinement, which bisects the marked edges plus whatever
+  extra edges are needed to avoid hanging nodes. `AdaptiveRefinementStep`
+  (Task-2-style Step, config-driven, no time-varying inputs) runs the WHOLE
+  solve -> estimate -> mark -> refine loop for `n_refinements` levels and
+  reports the dofs/energy-error convergence history plus the final
+  solution; `adaptive_refinement` is its composite generator (this study's
+  baseline composite id). The uniform-vs-adaptive COMPARISON itself, plus
+  the mesh-geometry snapshots for the refinement animation, are computed
+  directly via `fem_amr.run_uniform_loop`/`run_amr_loop` in this study's
+  `sims/run.py` (the sweep/comparison logic lives in the study, not the
+  generator -- same convention as the investigation's other convergence
+  study).
+
+  Achieved result (the committed production run, `initial_h=0.3`,
+  `theta=0.5`, degree=1): UNIFORM refinement (7 levels, 69 -> 218,049 dofs)
+  fits a log-log slope of -0.338 -- matching the theoretical -1/3 (=-0.333)
+  almost exactly. ADAPTIVE refinement (16 levels, 69 -> 259,055 dofs) fits
+  a slope of -0.528 -- close to the theoretical optimal -1/2, and far
+  steeper than uniform's -0.338 despite starting from the identical coarse
+  mesh. Geometrically: the initial mesh's near-corner (r<0.15) vs far-field
+  (r>0.5) cell density ratio is 0.52 (i.e. actually slightly SPARSER near
+  the corner before any refinement); the final adaptive mesh's ratio is
+  29.17 -- a 55.8x growth, direct evidence the estimator concentrated
+  refinement exactly where the singularity is, not merely producing a
+  better slope through some other mechanism.
 
 baseline:
-- name: resolution-8
-  composite: viva_fenics.composites.convergence.mesh_convergence
+- name: adaptive-refinement-baseline
+  composite: viva_fenics.composites.amr.adaptive_refinement
   params:
-    resolution: 8
+    n_refinements: 15
+    marking_fraction: 0.5
     degree: 1
 
-variants:
-- name: resolution-16
-  base_composite: resolution-8
-  parameter_overrides:
-    resolution: 16
-- name: resolution-32
-  base_composite: resolution-8
-  parameter_overrides:
-    resolution: 32
+variants: []
 
 expected_behavior:
-- name: convergence-rate-matches-order
-  en: "The fitted log-log convergence rate across resolution=[8,16,32] is at least 1.7 (theoretical O(h^2) is 2.0)."
-  observable: convergence_rate
-  condition: convergence_rate >= 1.7 (theoretical O(h^2) is 2.0)
+- name: adaptive-beats-uniform-rate
+  en: "The adaptive (AMR) energy-norm convergence rate is at least 0.10 steeper than the uniform rate, and lands within [-1.0, -0.45] -- near the theoretical optimal -0.5, well past uniform's -1/3 cap."
+  observable: adaptive_rate
+  condition: adaptive_rate <= uniform_rate - 0.10 and adaptive_rate <= -0.45
   rationale: >-
-    P1 Lagrange elements on a non-superconvergent mesh should converge at
-    the theoretical O(h^2) rate for the L2 norm; a rate below 1.7 would
-    indicate either a solver bug or an unintended superconvergence artifact
-    (the same band tests/test_poisson.py::test_convergence_rate locks).
+    Uniform refinement on this singular problem is provably capped near
+    O(dofs^-1/3) by the corner's limited regularity (theoretical -0.333;
+    achieved -0.338). A working adaptive scheme should recover close to the
+    optimal O(dofs^-1/2) (achieved -0.528) -- a rate ceiling uniform
+    refinement structurally cannot reach on this domain, however many
+    levels it runs. The 0.10 separation margin and the -0.45 ceiling both
+    sit with headroom below the achieved -0.528, ruling out both "no real
+    difference" and "not actually near-optimal" failure modes.
   measure:
     kind: derived_scalar
-    field: convergence_rate
+    field: adaptive_rate
+  expect:
+    op: "<="
+    value: -0.45
+- name: refinement-concentrates-at-corner
+  en: "The adaptive mesh's final near-corner/far-field cell-density ratio is at least 15x, and has grown at least 10x relative to the initial (near-uniform) mesh's ratio."
+  observable: corner_density_ratio
+  condition: corner_density_ratio >= 15.0 and concentration_growth >= 10.0
+  rationale: >-
+    A better convergence RATE alone doesn't prove the estimator is doing
+    the geometrically sensible thing -- this is the direct structural
+    check. The initial coarse mesh's near/far density ratio is 0.52 (no
+    corner bias); the achieved final adaptive ratio is 29.17 (55.8x
+    growth). 15x/10x thresholds sit with comfortable headroom below both
+    achieved numbers while still failing a scheme that refined uniformly
+    or diffusely instead of concentrating at the singularity.
+  measure:
+    kind: derived_scalar
+    field: corner_density_ratio
   expect:
     op: ">="
-    value: 1.7
+    value: 15.0
 
 behavior_tests:
-- name: convergence-rate-matches-order
+- name: adaptive-beats-uniform-rate
   classification: primary
   description: |
-    The fitted slope of log(l2_error) vs log(h) across resolution=[8,16,32]
-    must be at or above 1.7 (theoretical O(h^2) is 2.0; 1.7 leaves headroom
-    for mesh-dependent noise while still ruling out a broken/first-order
-    solve).
+    The adaptive log-log energy-error-vs-DOFs slope must be <= -0.45 (near
+    the theoretical optimal -0.5) AND at least 0.10 steeper (more negative)
+    than the uniform slope over the same initial mesh.
   measure:
     kind: derived_scalar
-    field: convergence_rate
+    field: adaptive_rate
   pass_if:
-    op: ">="
-    value: 1.7
+    op: "<="
+    value: -0.45
     provenance:
       kind: theory
       note: >-
-        Standard FEM a priori error theory gives O(h^(k+1)) for degree-k
-        Lagrange elements in the L2 norm; k=1 implies rate=2. 1.7 is a
-        calibration margin below the theoretical value, not a fitted
-        threshold.
-  requires_simulation: resolution-8
+        Standard a priori FEM theory for a corner singularity of exponent
+        2/3 caps P1 uniform refinement's energy-norm rate near
+        O(dofs^-1/3) (theoretical -0.333); optimally graded/adaptive
+        refinement recovers close to the smooth-solution rate O(dofs^-1/2).
+        -0.45 is a calibration margin above (i.e. less steep than) the
+        theoretical -0.5, not a fitted threshold; the achieved production
+        rate is -0.528.
+  requires_simulation: adaptive-refinement-baseline
+- name: refinement-concentrates-at-corner
+  classification: primary
+  description: |
+    The final adaptive mesh's near-corner (r<0.15) vs far-field (r>0.5)
+    cell-density ratio must be >= 15.0, and its growth relative to the
+    initial mesh's ratio must be >= 10.0x.
+  measure:
+    kind: derived_scalar
+    field: corner_density_ratio
+  pass_if:
+    op: ">="
+    value: 15.0
+    provenance:
+      kind: calibration
+      note: >-
+        The initial (near-uniform, pre-refinement) mesh's own near/far
+        density ratio is 0.52 -- the natural "no bias" baseline for this
+        domain/radii choice. The achieved production adaptive mesh's ratio
+        is 29.17 (55.8x growth). 15.0 sits with large headroom below that
+        achieved value while still failing a scheme that spread refinement
+        uniformly (which would keep the ratio near the initial ~0.5).
+  requires_simulation: adaptive-refinement-baseline
 
 pipeline_gate:
   prerequisites:
@@ -93,24 +186,37 @@ pipeline_gate:
   enables: []
   proceed_condition: |
     No downstream studies in this investigation depend on mesh-convergence;
-    it stands alongside transient-diffusion as a standalone FEM-rigor check
-    on the poisson-validation baseline.
+    it stands alongside the investigation's other studies as a standalone
+    FEM-rigor showcase built directly on the validated dolfinx bridge
+    (poisson-validation).
 
 canonical_runs:
 - name: default
   script: studies/mesh-convergence/sims/run.py
   args: []
-  label: "convergence sweep: resolution=[8,16,32], degree=1"
+  label: "AMR vs uniform on the L-shaped corner singularity (initial_h=0.3, theta=0.5, degree=1)"
   default: true
 
 visualizations:
-- name: convergence-loglog
-  chart: viz/convergence.html
+- name: mesh-refinement-animation
+  chart: viz/mesh_refinement_animation.html
+  render: "python sims/run.py"
+- name: convergence-comparison
+  chart: viz/convergence_comparison.html
+  render: "python sims/run.py"
+- name: final-solution-heatmap
+  chart: viz/final_solution_heatmap.html
   render: "python sims/run.py"
 
 embed_visualizations:
-- name: convergence-loglog
-  url: /studies/mesh-convergence/viz/convergence.html
-  description: "Interactive Plotly log-log convergence plot (L2 error vs mesh resolution)."
+- name: mesh-refinement-animation
+  url: /studies/mesh-convergence/viz/mesh_refinement_animation.html
+  description: "Animated adaptive mesh (levels 0-8) -- element density visibly concentrating at the re-entrant corner as Doerfler marking targets the singularity."
+- name: convergence-comparison
+  url: /studies/mesh-convergence/viz/convergence_comparison.html
+  description: "Log-log energy-norm error vs DOFs, uniform (slope ~-0.338) vs adaptive (slope ~-0.528), each with a fitted-slope annotation."
+- name: final-solution-heatmap
+  url: /studies/mesh-convergence/viz/final_solution_heatmap.html
+  description: "Interactive Plotly heatmap of the final adaptive solution -- the r^(2/3)*sin(2*theta/3) singular corner solution on its finest adapted mesh."
 
 conclusion: null

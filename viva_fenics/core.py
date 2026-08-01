@@ -21,6 +21,7 @@ from .processes.reaction import LogisticReactionProcess, GrayScottReactionProces
 from .processes.flow import NavierStokesProcess, CylinderFlowProcess
 from .processes.moving_boundary import MovingBoundaryProcess
 from .processes.complex_geometry import ComplexGeometryStep
+from .processes.amr import AdaptiveRefinementStep
 from .types import register_types
 
 # New processes (...) just need an import above and an entry here.
@@ -33,6 +34,7 @@ _PROCESSES = (
     ("CylinderFlowProcess", CylinderFlowProcess),
     ("MovingBoundaryProcess", MovingBoundaryProcess),
     ("ComplexGeometryStep", ComplexGeometryStep),
+    ("AdaptiveRefinementStep", AdaptiveRefinementStep),
 )
 
 

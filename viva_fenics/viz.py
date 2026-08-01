@@ -423,6 +423,143 @@ def field_animation_html(coords, frames, times, title, n=90):
 
 
 # ---------------------------------------------------------------------------
+# 2b. mesh_wireframe_animation_html
+# ---------------------------------------------------------------------------
+
+def mesh_wireframe_animation_html(frames_coords, frames_cells, labels, title, highlight=None):
+    """Animated triangle-mesh WIREFRAME (edges only, no field data) across a
+    sequence of DIFFERENT meshes -- e.g. successive AMR levels -- so element
+    density/concentration is directly visible, unlike ``field_animation_html``
+    (which needs a scalar field and re-interpolates every frame onto a
+    fixed-size grid).
+
+    Each frame is its own independent mesh (different node count / different
+    triangle count from every other frame -- NOT a fixed mesh with a
+    time-varying field), rendered as a single ``Scatter`` "lines" trace per
+    frame: every triangle's 3 edges drawn as (x0,x1,None)/(y0,y1,None)
+    segments (mirrors ``quiver_streamlines_html``'s ``None``-separated
+    multi-segment-line trick). No grid interpolation, no field values -- just
+    real mesh geometry, so this works for ANY triangulation regardless of
+    what (if anything) is solved on it.
+
+    Viz-size budget: unlike ``field_animation_html`` (whose payload is
+    ``O(n^2 * n_frames)`` from grid interpolation), this is
+    ``O(cells_in_frame)`` per frame, summed over frames -- coordinates are
+    rounded to 5 significant figures before JSON-encoding to keep the
+    (x,y,None)-per-edge payload compact. Callers with meshes that grow into
+    the tens of thousands of cells per frame should cap ``frames_cells`` to
+    the early/illustrative levels of a refinement sequence (a full AMR run's
+    LATER, much finer levels are better conveyed via the scalar
+    convergence chart than via full mesh geometry) -- see
+    ``studies/mesh-convergence/sims/run.py``'s ``ANIMATION_LEVELS``.
+
+    Args:
+        frames_coords: sequence of (N_i, 2) arrays, one per frame (node
+            coordinates -- N_i varies frame to frame).
+        frames_cells: sequence of (M_i, 3) int arrays, one per frame
+            (triangle vertex-index connectivity into the matching
+            ``frames_coords[i]``).
+        labels: sequence of str, one per frame (slider step label, e.g.
+            "level 3: 358 cells").
+        title: card title.
+        highlight: optional (x, y) point to mark with a small red dot in
+            every frame (e.g. the re-entrant corner being refined toward).
+    """
+    labels = list(labels)
+    n_frames = len(labels)
+
+    def _edges_xy(coords, cells):
+        coords = np.asarray(coords, dtype=float)
+        cells = np.asarray(cells, dtype=int)
+        xs, ys = [], []
+        for tri in cells:
+            for a, b in ((0, 1), (1, 2), (2, 0)):
+                x0, y0 = coords[tri[a]]
+                x1, y1 = coords[tri[b]]
+                xs += [round(float(x0), 5), round(float(x1), 5), None]
+                ys += [round(float(y0), 5), round(float(y1), 5), None]
+        return xs, ys
+
+    frame_edges = [
+        _edges_xy(frames_coords[i], frames_cells[i]) for i in range(n_frames)
+    ]
+
+    all_coords = np.vstack([np.asarray(c, dtype=float) for c in frames_coords])
+    xmin, ymin = all_coords.min(axis=0)
+    xmax, ymax = all_coords.max(axis=0)
+    pad_x = 0.04 * (xmax - xmin or 1.0)
+    pad_y = 0.04 * (ymax - ymin or 1.0)
+
+    def _mesh_trace(xs, ys):
+        return go.Scatter(
+            x=xs, y=ys, mode="lines", meta="series-1",
+            line=dict(width=1, color=SERIES[0]), opacity=0.75,
+            hoverinfo="skip", showlegend=False, name="mesh",
+        )
+
+    fig_frames = [
+        go.Frame(data=[_mesh_trace(xs, ys)], name=labels[i])
+        for i, (xs, ys) in enumerate(frame_edges)
+    ]
+    xs0, ys0 = frame_edges[0]
+    data = [_mesh_trace(xs0, ys0)]
+    if highlight is not None:
+        data.append(
+            go.Scatter(
+                x=[highlight[0]], y=[highlight[1]], mode="markers",
+                marker=dict(size=9, color="#c0392b", line=dict(width=1, color="#fcfcfb")),
+                hovertemplate="re-entrant corner<extra></extra>",
+                showlegend=False, name="corner",
+            )
+        )
+
+    fig = go.Figure(data=data, frames=fig_frames)
+
+    slider_steps = [
+        dict(
+            label=labels[i], method="animate",
+            args=[[labels[i]], dict(mode="immediate", frame=dict(duration=0, redraw=True), transition=dict(duration=0))],
+        )
+        for i in range(n_frames)
+    ]
+
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(
+            title=dict(text="x", font=dict(color="#52514e")),
+            range=[xmin - pad_x, xmax + pad_x],
+            scaleanchor="y", constrain="domain",
+        ),
+        yaxis=dict(title=dict(text="y", font=dict(color="#52514e")), range=[ymin - pad_y, ymax + pad_y]),
+        margin=dict(l=60, r=30, t=50, b=90),
+        updatemenus=[
+            dict(
+                type="buttons", direction="left", x=0.02, y=-0.18, xanchor="left", yanchor="top",
+                showactive=False,
+                buttons=[
+                    dict(
+                        label="▶ Play", method="animate",
+                        args=[None, dict(frame=dict(duration=700, redraw=True), fromcurrent=True, transition=dict(duration=0))],
+                    ),
+                    dict(
+                        label="⏸ Pause", method="animate",
+                        args=[[None], dict(mode="immediate", frame=dict(duration=0, redraw=False), transition=dict(duration=0))],
+                    ),
+                ],
+            )
+        ],
+        sliders=[
+            dict(
+                active=0, x=0.02, len=0.94, pad=dict(t=40),
+                currentvalue=dict(prefix="", font=dict(color="#52514e")),
+                font=dict(color="#898781"), steps=slider_steps,
+            )
+        ],
+    )
+    return _finish(fig, height=560)
+
+
+# ---------------------------------------------------------------------------
 # 3. convergence_loglog_html
 # ---------------------------------------------------------------------------
 
@@ -486,6 +623,71 @@ def convergence_loglog_html(h, errors):
         margin=dict(l=70, r=30, t=50, b=50),
     )
     return _finish(fig, height=440)
+
+
+# ---------------------------------------------------------------------------
+# 3a. convergence_loglog_compare_html
+# ---------------------------------------------------------------------------
+
+def convergence_loglog_compare_html(series, title="Convergence: uniform vs adaptive", x_label="DOFs"):
+    """Log-log error-vs-DOFs plot comparing MULTIPLE refinement strategies
+    (e.g. uniform vs adaptive), each with its own fitted-slope annotation --
+    the two-series extension of ``convergence_loglog_html`` (kept separate
+    so that function's single-series signature/callers are undisturbed).
+
+    Args:
+        series: dict of {label: (dofs, errors)} -- each value a pair of
+            equal-length 1D sequences, plotted in insertion order and
+            colored by the dataviz categorical palette (``SERIES``).
+        title: card title.
+        x_label: x-axis title (DOFs by default; also sensible as "h" for a
+            fixed-degree resolution sweep).
+    """
+    fig = go.Figure()
+    slopes = {}
+    for i, (label, (x_vals, y_vals)) in enumerate(series.items()):
+        x_vals = np.asarray(x_vals, dtype=float)
+        y_vals = np.asarray(y_vals, dtype=float)
+        order = np.argsort(x_vals)
+        x_s, y_s = x_vals[order], y_vals[order]
+
+        slope, intercept = np.polyfit(np.log(x_s), np.log(y_s), 1)
+        slopes[label] = float(slope)
+        fit_y = np.exp(intercept) * x_s**slope
+
+        color = SERIES[(2 * i) % len(SERIES)]
+        fig.add_trace(
+            go.Scatter(
+                x=x_s, y=y_s, mode="markers+lines", name=f"{label} (observed)",
+                meta=f"series-{2 * i + 1}",
+                line=dict(color=color, width=2),
+                marker=dict(size=8, color=color, line=dict(width=2, color="#fcfcfb")),
+                hovertemplate=f"{label}<br>{x_label}=%{{x:.4g}}<br>error=%{{y:.4g}}<extra></extra>",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x_s, y=fit_y, mode="lines", name=f"{label} fit (slope {slope:.3f})",
+                meta=f"series-{2 * i + 2}",
+                line=dict(color=color, width=2, dash="dash"),
+                hoverinfo="skip",
+            )
+        )
+
+    annotation_lines = "<br>".join(f"{label}: slope ≈ {s:.3f}" for label, s in slopes.items())
+    fig.add_annotation(
+        xref="paper", yref="paper", x=0.98, y=0.06, xanchor="right", yanchor="bottom",
+        showarrow=False, text=annotation_lines,
+        font=dict(size=13, color="#52514e"), bgcolor="rgba(0,0,0,0)", align="right",
+    )
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(title=dict(text=x_label, font=dict(color="#52514e")), type="log"),
+        yaxis=dict(title=dict(text="energy-norm error", font=dict(color="#52514e")), type="log"),
+        legend=dict(font=dict(color="#52514e")),
+        margin=dict(l=70, r=30, t=50, b=50),
+    )
+    return _finish(fig, height=460)
 
 
 # ---------------------------------------------------------------------------

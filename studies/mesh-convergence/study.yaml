@@ -108,4 +108,9 @@ visualizations:
   chart: viz/convergence.html
   render: "python sims/run.py"
 
+embed_visualizations:
+- name: convergence-loglog
+  url: /studies/mesh-convergence/viz/convergence.html
+  description: "Interactive Plotly log-log convergence plot (L2 error vs mesh resolution)."
+
 conclusion: null

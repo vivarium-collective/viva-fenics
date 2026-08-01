@@ -124,4 +124,9 @@ visualizations:
   chart: viz/diffusion_animation.html
   render: "python sims/run.py"
 
+embed_visualizations:
+- name: field-animation
+  url: /studies/transient-diffusion/viz/diffusion_animation.html
+  description: "Interactive Plotly animation of the diffusing field over time (peak decay + mass conservation)."
+
 conclusion: null

@@ -96,4 +96,9 @@ visualizations:
   chart: viz/solution_heatmap.html
   render: "python sims/run.py"
 
+embed_visualizations:
+- name: solution-heatmap
+  url: /studies/poisson-validation/viz/solution_heatmap.html
+  description: "Interactive Plotly heatmap of the FEM solution vs the manufactured exact solution."
+
 conclusion: null

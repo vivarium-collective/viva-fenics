@@ -1,25 +1,22 @@
 name: Publish read-only dashboard
 
-# Build the workspace into a self-contained static SPA snapshot and publish it
-# to the gh-pages branch at dashboard/ (served at
-# <user>.github.io/<repo>/dashboard/). The READ-ONLY mirror of every
-# investigation + study on main — browsable with no server.
+# Build this workspace into a self-contained static SPA and publish it to the
+# gh-pages branch at dashboard/ (served at
+# https://vivarium-collective.github.io/viva-fenics/dashboard/). A read-only mirror of every
+# investigation + study on main, browsable with no server.
 #
-# Ships with every workspace scaffolded from the template. Repo-specific bits
-# (base path, interactive link) are derived from the GitHub repo at run time, so
-# there is nothing to edit per workspace.
-#
-# One-time setup: Settings → Pages → Source = "Deploy from a branch" → gh-pages
-# (this workflow creates the gh-pages branch on its first run).
-#
-# DEPLOY job (post-merge to main), NOT a PR gate — a failure here never blocks a
-# merge. It only ever writes dashboard/ on gh-pages.
+# Scaffolded by viva_superpowers.publish_assets.emit(). DEPLOY job
+# (post-merge), not a PR gate; it only ever writes dashboard/ on gh-pages.
 
 on:
   push:
     branches: [main]
     paths:
       - 'workspace/**'
+      - 'investigations/**'
+      - 'studies/**'
+      - 'workspace.yaml'
+      - 'reports/figures/**'
       - 'scripts/publish_dashboard.sh'
       - '.github/workflows/publish-dashboard.yml'
   workflow_dispatch:
@@ -35,6 +32,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      VIVARIUM_WORKBENCH_REQUIRE_LOOM: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -46,27 +45,24 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12.9
 
-      - name: Install dependencies (incl. vivarium-workbench)
-        run: uv sync --extra dev || uv sync
-
-      - name: Ensure the publish CLI is present (latest dashboard main)
-        # uv.lock may pin a vivarium-workbench commit predating the publish CLI;
-        # force current main so `vivarium-workbench-publish` exists.
-        run: uv pip install --reinstall-package vivarium-workbench "vivarium-workbench @ git+https://github.com/vivarium-collective/vivarium-workbench.git@main"
+      - name: Install vivarium-workbench (robust — skip workspace sim-deps)
+        # Only vivarium-workbench + this workspace's own package are needed to
+        # render composite specs statically. The workspace's sibling
+        # process-packages (often relative-path deps) do NOT resolve on a clean
+        # runner and are NOT needed for the static build, so install the
+        # workspace with --no-deps: a missing sim-dep degrades to an unresolved
+        # composite in the dashboard rather than aborting the whole publish.
+        run: |
+          uv venv
+          uv pip install "vivarium-workbench @ git+https://github.com/vivarium-collective/vivarium-workbench.git@main"
+          uv pip install -e . --no-deps || echo "workspace has no installable build; composites render from spec only"
 
       - name: Build dashboard snapshot
-        # Run inside the activated venv, NOT `uv run` — `uv run` re-syncs to
-        # uv.lock first, which would undo the ad-hoc vivarium-workbench@main
-        # install above and drop the publish console script (-> exit 127).
-        # base-path / interactive-url are derived from the GitHub repo.
         run: |
           source .venv/bin/activate
-          bash scripts/publish_dashboard.sh \
-            reports/published/dashboard \
-            "/${{ github.event.repository.name }}/dashboard" \
-            "${{ github.server_url }}/${{ github.repository }}"
+          bash scripts/publish_dashboard.sh reports/published/dashboard
 
-      - name: Publish to gh-pages
+      - name: Publish to gh-pages (create the branch if absent)
         run: |
           set -euo pipefail
           if [ ! -f reports/published/dashboard/index.html ]; then
@@ -75,20 +71,18 @@ jobs:
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # Worktree on gh-pages, bootstrapping the branch on first publish.
-          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
-            git fetch origin gh-pages
-            git worktree add /tmp/ghp gh-pages
-          else
-            echo "gh-pages does not exist yet — bootstrapping it"
-            git worktree add --detach /tmp/ghp
-            ( cd /tmp/ghp && git checkout --orphan gh-pages && git rm -rf . >/dev/null 2>&1 || true )
-          fi
-          rm -rf /tmp/ghp/dashboard
-          mkdir -p /tmp/ghp/dashboard
-          cp -R reports/published/dashboard/. /tmp/ghp/dashboard/
-          touch /tmp/ghp/.nojekyll
+          git fetch origin gh-pages 2>/dev/null || true
+          git worktree add --detach /tmp/ghp HEAD
           cd /tmp/ghp
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            git checkout -B gh-pages origin/gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . >/dev/null 2>&1 || true
+            touch .nojekyll
+          fi
+          rm -rf dashboard && mkdir -p dashboard
+          cp -R "$GITHUB_WORKSPACE/reports/published/dashboard/." dashboard/
           git add -A
           if git diff --cached --quiet; then
             echo "dashboard snapshot unchanged; skipping commit"
@@ -96,24 +90,4 @@ jobs:
             git commit -m "gh-pages: republish read-only dashboard (automated, ${GITHUB_SHA::7})"
             git push origin gh-pages
             echo "published read-only dashboard to gh-pages:dashboard/"
-          fi
-
-      - name: Feature the live dashboard in README
-        # Keep a prominent dashboard banner in README.md (on main) pointing at
-        # the hosted site. Derives the URL from the repo, commits only on a diff
-        # (so effectively a one-time edit), and never blocks — README isn't in
-        # this workflow's trigger paths, so the commit won't re-trigger it.
-        run: |
-          set -euo pipefail
-          owner="${{ github.repository_owner }}"; repo="${{ github.event.repository.name }}"
-          python3 scripts/feature_dashboard_in_readme.py README.md \
-            "https://${owner}.github.io/${repo}/dashboard/" \
-            "https://${owner}.github.io/${repo}/"
-          if ! git diff --quiet README.md; then
-            git config user.name  "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add README.md
-            git commit -m "docs: feature the live dashboard in README (automated)"
-            git push origin HEAD:main \
-              || echo "README push skipped (non-fast-forward); refreshes next run"
           fi

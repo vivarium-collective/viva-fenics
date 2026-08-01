@@ -155,4 +155,9 @@ visualizations:
   chart: viz/reaction_diffusion_animation.html
   render: "python sims/run.py"
 
+embed_visualizations:
+- name: wavefront-animation
+  url: /studies/reaction-diffusion/viz/reaction_diffusion_animation.html
+  description: "Interactive Plotly animation of the reaction-diffusion wavefront (mass growth via coupling)."
+
 conclusion: null

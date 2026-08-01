@@ -203,4 +203,12 @@ visualizations:
   chart: viz/cavity_pressure.html
   render: "python sims/run.py"
 
+embed_visualizations:
+- name: cavity-flow-streamlines
+  url: /studies/navier-stokes/viz/cavity_flow.html
+  description: "Interactive Plotly streamlines of the lid-driven cavity flow."
+- name: cavity-pressure-heatmap
+  url: /studies/navier-stokes/viz/cavity_pressure.html
+  description: "Interactive Plotly heatmap of the cavity pressure field."
+
 conclusion: null

@@ -421,7 +421,7 @@ class CylinderFlowProcess(Process):
         This is what justifies ``CylinderFlowProcess`` being a stateful
         ``Process`` with a real (if usually-zero) input port, per the
         Port-Design "no inputs => Step" convention documented on
-        ``ComplexGeometryStep``.
+        ``PoissonSolverStep``.
 
     Outputs
     -------
@@ -945,7 +945,7 @@ class PorousFlowStep(Step):
 
     Stateless (a fresh mesh + a single linear saddle-point solve every
     invocation, no time-varying inputs) -- the Port-Design "no inputs =>
-    Step" convention, same as ``ComplexGeometryStep``.
+    Step" convention, same as ``PoissonSolverStep``.
 
     Outputs
     -------
@@ -972,7 +972,7 @@ class PorousFlowStep(Step):
         ~0 (see ``noslip_max_speed`` function docstring).
     n_cells : integer
         Imported mesh's local cell count (confirms a non-trivial
-        triangulation, same readout as ``ComplexGeometryStep``).
+        triangulation, via ``fem_gmsh.n_cells``).
     """
 
     config_schema = {

@@ -103,7 +103,8 @@ def build_lshape_amr_mesh(h):
     ``Omega = [-1,1]^2 \\ [0,1]x[-1,0]`` (re-entrant corner at the origin,
     see module docstring) -- a real gmsh OCC boolean cut, unstructured
     triangulation, imported via ``dolfinx.io.gmsh.model_to_mesh`` exactly
-    like ``fem_gmsh.build_gmsh_mesh``.
+    like ``fem_gmsh``'s own mesh builders (e.g.
+    ``fem_gmsh.build_channel_cylinder_mesh``).
 
     Args:
         h: target mesh element size passed to gmsh (coarser initial mesh ->

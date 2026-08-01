@@ -1,50 +1,70 @@
 schema_version: 2
 name: fenics-showcase
-title: "FEniCS showcase: FEM solvers as composable pbg processes"
+title: "FEniCS showcase: seven real dolfinx studies as composable pbg processes"
 created: '2026-07-31'
 status: planning
 
 question: |
-  Can modern FEniCSx be wrapped as composable pbg processes that reproduce
-  canonical FEM results and enable bigraph coupling?
+  Can real FEniCSx (dolfinx) solvers, wrapped as ordinary process-bigraph
+  Steps/Processes, both PASS rigorous numerical-verification checks and
+  drive seven genuinely different, showcase-tier physics problems --
+  spanning high-order accuracy, singular geometry, morphogen patterning,
+  Turing instability, bluff-body vortex shedding, porous-media flow, and
+  moving-boundary fluid-structure coupling -- using the same underlying
+  bridge throughout?
 
 hypothesis: |
-  Wrapping dolfinx's Poisson, transient-diffusion, and logistic-reaction
-  solvers as process-bigraph Steps/Processes preserves their numerical
-  fidelity (manufactured-solution validation, O(h^2) mesh convergence,
-  mass-conserving time-stepping) AND enables genuine bigraph composition:
-  Fisher-KPP reaction-diffusion dynamics should emerge purely from two
-  independently-authored processes (DiffusionProcess, LogisticReactionProcess)
-  sharing bigraph stores, with neither process aware of the other.
+  A single dolfinx bridge, exercised through a handful of composable
+  process-bigraph building blocks (a Step for stateless one-shot solves, a
+  Process for time-stepped ones, shared bigraph stores for wiring
+  independently-authored processes together), is sufficient to reproduce
+  textbook FEM verification results (optimal P1/P2/P3 convergence rates, a
+  posteriori-driven adaptive refinement recovering a singularity's optimal
+  rate) AND to drive substantially harder showcase physics (a two-species
+  Turing instability, a von Karman vortex street, a porous-media
+  permeability sweep, an ALE peristaltic pump) without departing from that
+  same validated bridge or requiring problem-specific solver hacks.
 
 description: |
-  Seven studies build up from validation to composition to advanced,
-  showcase-tier physics. `poisson-validation` and `mesh-convergence`
-  establish that the dolfinx bridge reproduces textbook FEM numerics
-  (manufactured-solution correctness, O(h^2) P1 convergence).
-  `transient-diffusion` extends the bridge to time-stepped Processes and
-  checks mass conservation under backward-Euler integration.
-  `reaction-diffusion` is the coupling + visual headline: it wires TWO
-  `DiffusionProcess` instances (species U, V; Du=2*Dv) and ONE
-  `GrayScottReactionProcess` into shared `stores.u` / `stores.v` /
-  `stores.source_u` / `stores.source_v` paths and shows a genuine 2D Turing
-  instability -- spontaneous self-organization into spot/labyrinth/stripe
-  patterns -- emerges from that three-process wiring alone, across three
-  Gray-Scott parameter regimes -- the composability property the core of the
-  investigation exists to demonstrate. Three ADVANCED studies extend the
-  showcase beyond scalar diffusion/reaction: `navier-stokes` is the
-  fluid-dynamics showpiece -- a von Karman vortex street (the DFG 2D-2
-  benchmark: flow past an off-center cylinder in a channel, gmsh-generated
-  cylinder-refined mesh, IPCS operator splitting, coupled P2/P1
-  velocity-pressure spaces, real surface-force-integral drag/lift);
-  `moving-boundary` is the first
-  deforming-domain demo (prescribed-ALE mesh motion re-solved every
-  substep); `complex-geometry` is the porous-media showpiece -- a real
-  Taylor-Hood mixed Stokes solve on a gmsh-generated periodic pillar
-  lattice, with the effective (Darcy) permeability computed from the
-  solved field and shown to fall as porosity falls. Runs are authored here (Task 7, extended Task 12); execution
-  recorded into the workspace's `.pbg/runs.jsonl` run log plus behavior-test
-  evaluation happens in Task 8.
+  Seven studies build a rigor-to-showcase arc. `poisson-validation`
+  verifies the bridge is not just correct but genuinely HIGH-ORDER
+  accurate: P1/P2/P3 Lagrange elements each hit their own theoretical L2
+  convergence rate on a smooth manufactured solution. `mesh-convergence`
+  takes that verified bridge to a corner singularity (the L-shaped domain's
+  re-entrant corner) and shows a real residual-based a posteriori estimator,
+  driving Doerfler-marked adaptive refinement, recovers close to the
+  optimal convergence rate that uniform refinement is provably capped below
+  -- with the refined mesh visibly concentrating at the singularity.
+  `transient-diffusion` moves from one-shot solves to TIME-STEPPED,
+  multi-process composition: an extended `DiffusionProcess` (a Dirichlet
+  source boundary) and a new `LinearDegradationProcess`, coupled only
+  through shared stores, reproduce a classic Source-Diffusion-Degradation
+  morphogen gradient and its Wolpert "French flag" positional-information
+  readout. `reaction-diffusion` is the investigation's composability
+  headline: TWO `DiffusionProcess` instances (differential diffusivities)
+  plus ONE `GrayScottReactionProcess`, wired to shared stores with none of
+  the three processes aware of the others, produce a genuine 2D Turing
+  instability -- spontaneous self-organization from a near-uniform field
+  into structurally distinct spot/labyrinth/stripe-family patterns across
+  three parameter regimes. Three ADVANCED studies then push the same
+  bridge into full continuum mechanics: `navier-stokes` is the
+  fluid-dynamics showpiece -- a von Karman vortex street off an off-center
+  cylinder (the DFG 2D-2 benchmark: gmsh-generated cylinder-refined mesh,
+  IPCS operator splitting, coupled P2/P1 velocity-pressure, real
+  surface-force-integral drag/lift) landing in the neighborhood of the
+  published reference Cd/Strouhal; `complex-geometry` is the porous-media
+  showpiece -- a real Taylor-Hood mixed Stokes solve on a gmsh-generated
+  periodic pillar lattice, with the effective (Darcy) permeability computed
+  from the solved field and shown to fall monotonically as porosity falls;
+  `moving-boundary` is the fluid-structure-coupling showpiece --
+  peristaltic pumping from a genuinely composed system (a harmonic-extension
+  ALE mesh-motion process prescribing a traveling wall occlusion, coupled
+  through shared stores to an ALE-corrected incompressible Navier-Stokes
+  process), producing a net axial flow that is positive and grows with
+  occlusion amplitude with no term in either process hard-coding the
+  other's physics. Runs are authored here and executed with results
+  recorded into the workspace's `.pbg/runs.jsonl` run log; behavior-test
+  evaluation reads that run log against each study's `expected_behavior`.
 
 studies:
 - poisson-validation
@@ -52,156 +72,193 @@ studies:
 - transient-diffusion
 - reaction-diffusion
 - navier-stokes
-- moving-boundary
 - complex-geometry
+- moving-boundary
 
 executive:
   what_is_this: |
     A showcase investigation proving that a real external FEM solver
-    (FEniCSx/dolfinx, not a mock or reimplementation) can be wrapped as
-    process-bigraph Steps/Processes and composed like any other pbg model.
-    Two validation studies (`poisson-validation`, `mesh-convergence`) confirm
-    numerical fidelity against known analytic/theoretical results; two
-    dynamics studies (`transient-diffusion`, `reaction-diffusion`) extend the
-    bridge to time-stepping and cross-process coupling. Three ADVANCED
-    studies (`navier-stokes`, `moving-boundary`, `complex-geometry`) push
-    the same bridge into fluid dynamics, deforming domains, and a real
-    porous-media Stokes-flow/effective-permeability result.
+    (FEniCSx/dolfinx, not a mock or reimplementation), wrapped as ordinary
+    process-bigraph Steps/Processes, both passes rigorous numerical-
+    verification checks and drives seven substantially different
+    showcase-tier physics problems using the same bridge throughout. Two
+    validation studies (`poisson-validation`, `mesh-convergence`) confirm
+    numerical fidelity -- optimal multi-order L2 convergence and adaptive
+    recovery of an optimal rate on a corner singularity. Two dynamics
+    studies (`transient-diffusion`, `reaction-diffusion`) extend the bridge
+    to time-stepping and cross-process store-wiring composability, the
+    latter producing a genuine Turing instability from three
+    independently-authored processes. Three ADVANCED studies
+    (`navier-stokes`, `complex-geometry`, `moving-boundary`) push the same
+    bridge into incompressible Navier-Stokes vortex shedding, a real
+    porous-media permeability result, and ALE fluid-structure-coupled
+    peristaltic pumping.
   verdict: |
-    Authored and lint-clean: 7 studies, each with a real `@composite_generator`
-    baseline, a `sims/run.py` canonical runner, and an interactive viz.
-    Standalone execution of every runner reproduces the expected numerics:
-    l2_error ~2.8e-13 (poisson-validation, tol 1e-10), observed convergence
-    rate ~2.00 (mesh-convergence, P1 -> O(h^2)), mass conserved with a
-    decaying peak (transient-diffusion), a genuine Gray-Scott Turing
-    instability -- V's spatial variance grows well past the 5x threshold
-    from a near-uniform start, the pattern settles into a bounded, finite
-    coverage fraction, and three (F,k) regimes produce measurably different
-    morphology (reaction-diffusion; see the study report for the exact
-    achieved values), a von Karman vortex street shedding off
-    an off-center cylinder with oscillating drag/lift in the neighborhood of
-    the DFG 2D-2 benchmark's reference Cd/Cl/Strouhal
-    (navier-stokes), a deforming-mesh diffusion solve whose boundary tracks
-    the prescribed law to near machine precision with a domain measure that
-    scales with amplitude (moving-boundary), and a real Taylor-Hood Stokes
-    solve through a gmsh-generated porous pillar lattice whose effective
-    (Darcy) permeability falls monotonically (>10x across a 4-point sweep)
-    as porosity falls (complex-geometry).
+    Authored and lint-clean: 7 studies, each with a real
+    `@composite_generator` baseline, a `sims/run.py` canonical runner, and
+    an interactive viz, with a completed run recorded in
+    `.pbg/runs.jsonl` for every study. Standalone execution of every runner
+    reproduces the expected numerics: P1/P2/P3 convergence rates of
+    1.998/3.000/4.000 against theoretical 2.0/3.0/4.0 (poisson-validation);
+    adaptive refinement recovering a -0.528 energy-norm convergence rate
+    (near the theoretical optimal -0.5) against uniform's provably-capped
+    -0.338, with the adaptive mesh's near-corner cell density growing
+    55.8x (mesh-convergence); a morphogen gradient whose fitted decay
+    length matches the analytic lambda=sqrt(D/k) to within 1.63% across
+    three regimes, with French-flag thresholds shifting monotonically
+    inward as predicted (transient-diffusion); a genuine Gray-Scott Turing
+    instability -- V's spatial variance grows 10.5x from a near-uniform
+    start into a bounded, structurally non-trivial pattern, with three
+    (F,k) regimes producing measurably different coverage/topology
+    (reaction-diffusion); a von Karman vortex street with an oscillating
+    lift coefficient (std(Cl)=0.41), mean drag Cd=3.03 (DFG 2D-2 reference
+    Cd_max~=3.22-3.24), and Strouhal St~=0.31+/-0.07 (reference ~0.30)
+    (navier-stokes); a Taylor-Hood Stokes solve through a porous pillar
+    lattice that stays approximately divergence-free and exactly no-slip
+    at every porosity, with effective permeability falling >10x across a
+    4-point porosity sweep (complex-geometry); and an ALE-coupled
+    peristaltic pump whose net flow rate is clearly positive and increases
+    monotonically across an amplitude sweep, with the domain measurably
+    (and exactly, per the traveling-wave geometry) narrowed by wall motion
+    (moving-boundary).
   verdict_status: in-progress
   verdict_detail: |
-    Task 7 scope: author the investigation + 4 core studies + runners and
-    get them lint-clean and individually executable (done). Tasks 9-11
-    scope: author the 3 advanced studies (navier-stokes, moving-boundary,
-    complex-geometry) with the same rigor (done). Task 12 scope (this task):
-    bind all 7 studies into this investigation's `studies:` list and extend
-    `acceptance_criteria` accordingly (done). Task 8 scope (not yet done):
-    drive these runners through `/viva-study run-script` so results land in
-    the workspace's `.pbg/runs.jsonl` run log and the dashboard's Tests tab
-    reflects the behavior tests declared below.
+    All 7 studies were rebuilt into their current (impressive-tier) form
+    and are individually lint-clean and executable, with a completed
+    production run for each recorded in `.pbg/runs.jsonl` (done). This
+    integration pass bound the investigation narrative and
+    `acceptance_criteria` to the rebuilt studies' actual
+    `expected_behavior` names, removed the now-orphaned obstacle/L-shape/
+    annulus gmsh-Poisson code the porous-lattice study superseded, and
+    republished the read-only dashboard bundle (done). Not yet done:
+    driving these runners' completed runs through the dashboard's Tests
+    tab evaluator against the behavior tests declared below (the
+    PASS/FAIL verdicts above come from each runner script's own printed
+    checks, not yet the dashboard's evaluator), and mesh-/dt-convergence
+    studies for navier-stokes and complex-geometry (both are currently a
+    single production mesh/dt point chosen for feasible wall-time, not a
+    convergence study in their own right).
   decisions_needed: []
 
 scientific_argument:
   main_claim: |
     A real dolfinx bridge, wrapped as ordinary process-bigraph Steps and
-    Processes, reproduces canonical FEM validation results (MMS correctness,
-    O(h^2) P1 convergence, mass-conserving transient diffusion) and, when
-    THREE independently-authored processes (two DiffusionProcess instances
-    plus one GrayScottReactionProcess) are wired to the same bigraph stores,
-    produces a genuine 2D Turing instability -- spontaneous pattern
-    self-organization -- without any of the three processes containing any
-    knowledge of the others. The showcase now spans validation ->
-    coupling -> fluid dynamics -> moving boundaries -> complex geometry:
-    the same bridge that passes MMS/convergence checks and demonstrates
-    store-wiring composability also drives a real incompressible
-    Navier-Stokes solve, a prescribed-ALE deforming-mesh diffusion solve,
-    and a genuine porous-media engineering result -- effective permeability
-    from a Taylor-Hood mixed Stokes solve on a gmsh-generated pillar
-    lattice -- without departing from the bridge validated in the first
-    four studies.
+    Processes, is simultaneously RIGOROUS (reproducing textbook multi-order
+    FEM convergence theory and a posteriori-driven adaptive refinement) and
+    COMPOSABLE (independently-authored processes, wired only through shared
+    bigraph stores, produce emergent physics -- a morphogen gradient, a
+    Turing instability, a peristaltic pump -- that no single process
+    computes alone) and capable of ADVANCED continuum-mechanics showcase
+    results (a DFG-benchmark vortex street, a porous-media permeability
+    sweep) without departing from the bridge validated by the first two
+    studies.
   evidence_for:
-  - "poisson-validation: l2_error ~2.8e-13 against a quadratic manufactured
-    solution with degree-2 Lagrange elements (Galerkin-exact), well inside
-    the 1e-10 tolerance."
-  - "mesh-convergence: observed P1 convergence rate ~2.00 across
-    resolution=[8,16,32] on a superconvergence-resistant (crossed-diagonal)
-    mesh, matching O(h^2) theory."
-  - "transient-diffusion: the gaussian bump's peak decays under backward-Euler
-    diffusion while the FEM-integral mass stays flat (Neumann/no-flux
-    boundary), confirming the time-stepped Process wrapper conserves mass."
+  - "poisson-validation: P1/P2/P3 Lagrange elements achieve L2 convergence
+    rates of 1.998/3.000/4.000 against their theoretical optima 2.0/3.0/4.0
+    on a smooth (sin(pi x)sin(pi y)) manufactured solution -- the bridge is
+    high-order-accurate, not merely correct at one order."
+  - "mesh-convergence: on the L-shaped re-entrant-corner singularity,
+    uniform refinement's energy-norm rate is provably capped near -1/3
+    (achieved -0.338, matching theory almost exactly); a real residual
+    error estimator driving Doerfler-marked adaptive refinement recovers
+    -0.528 (near the theoretical optimal -0.5) and grows the mesh's
+    near-corner cell density 55.8x relative to the initial mesh -- direct
+    geometric evidence the estimator concentrates refinement where the
+    singularity actually is."
+  - "transient-diffusion: an extended DiffusionProcess (Dirichlet source
+    boundary) and a new LinearDegradationProcess, coupled purely through
+    shared stores, reproduce the classic SDD morphogen gradient -- fitted
+    decay length within 1.63% of analytic lambda=sqrt(D/k) across 3
+    regimes, with French-flag threshold crossings shifting monotonically
+    inward as k increases."
   - "reaction-diffusion: two DiffusionProcess instances (species U, V;
     Du=2*Dv) and one GrayScottReactionProcess, coupled purely through
     shared stores, produce a genuine Turing instability -- V's spatial
-    variance grows well past a near-uniform start, the pattern is bounded
-    and structurally non-trivial (a finite fraction of the domain, not all
-    or none of it), and three (F,k) regimes produce measurably different
-    coverage/morphology; see the study's report for the achieved values."
+    variance grows 10.5x from a near-uniform start, the pattern is bounded
+    and structurally non-trivial (48.3% domain coverage, not all or none of
+    it), and three (F,k) regimes produce measurably different
+    coverage/topology (a 0.336 coverage spread, and 9-vs-1 connected
+    pattern regions between the labyrinth and other regimes)."
   - "navier-stokes: flow past an off-center cylinder (DFG 2D-2 benchmark,
-    Re=100) sheds a genuine von Karman vortex street -- the lift coefficient
-    oscillates once past the impulsive-start transient, the mean drag
-    coefficient lands in the neighborhood of the DFG reference
-    (Cd_max~=3.22-3.24), and the shedding frequency's Strouhal number lands
-    in the neighborhood of the DFG reference (St~=0.30); see the study's
-    report for the exact achieved values and production-run wall-time."
-  - "moving-boundary: boundary_position tracks the prescribed oscillation
-    law to near machine precision, the FEM-assembled domain_measure's swing
-    scales with oscillation amplitude across an amplitude sweep, and the
-    diffusion field stays finite/bounded throughout on the deforming mesh."
+    Re=100) sheds a genuine von Karman vortex street -- the lift
+    coefficient oscillates (std(Cl)=0.41) once past the impulsive-start
+    transient, mean drag Cd=3.03 lands within ~6% of the DFG reference
+    Cd_max~=3.22-3.24, and the shedding Strouhal number St~=0.31+/-0.07
+    covers the DFG reference ~0.30."
   - "complex-geometry: a real Taylor-Hood mixed Stokes solve on a
-    gmsh-generated periodic pillar lattice (nx=ny=4, cell counts in the
-    5000-9000 range) is approximately divergence-free (mean|div(u)|
-    3e-5-1e-4) and exactly no-slip on every wall/pillar boundary dof at
-    every one of 4 porosities (0.92, 0.82, 0.68, 0.50), and the effective
-    (Darcy) permeability k_eff computed from the volume-averaged velocity
-    decreases monotonically -- a >14x drop -- as porosity decreases,
-    matching the qualitative Kozeny-Carman-type trend expected of a real
-    porous microstructure; see the study's report for the exact achieved
-    k_eff(porosity) values and the honest caveat on the KC-shape fit
-    quality (a 4-point sweep cannot independently validate its exponents)."
+    gmsh-generated periodic pillar lattice stays approximately
+    divergence-free (mean|div(u)| ~3e-5-1e-4) and exactly no-slip on every
+    wall/pillar boundary dof at every porosity in a 4-point sweep, and the
+    effective (Darcy) permeability k_eff falls >10x from the sparsest to
+    the densest lattice -- the qualitative Kozeny-Carman-type trend
+    expected of a real porous microstructure."
+  - "moving-boundary: a harmonic-extension ALE mesh-motion process and an
+    ALE-corrected incompressible Navier-Stokes process, coupled purely
+    through shared stores, produce genuine peristaltic pumping -- a
+    clearly positive, post-transient net flow rate (Q~=0.19-0.2) that
+    increases monotonically across an amplitude sweep, with the
+    FEM-assembled domain measure exactly (per the traveling-wave geometry)
+    15% below the undeformed area, confirming the wall motion genuinely
+    deforms the domain rather than sitting inert."
   evidence_against:
   - "All seven studies use a single fixed random-free deterministic setup
     (one resolution/degree/parameter point per study beyond the declared
     sweeps); broader parameter robustness beyond the declared sweeps
-    (resolution in mesh-convergence, rate in reaction-diffusion,
-    amplitude/mode in moving-boundary, lattice density/mesh grading in
-    complex-geometry) is untested -- only pillar_radius (porosity) is
-    swept. navier-stokes in particular is a single production run at
-    one mesh/dt/duration chosen for feasible wall-time, not a mesh- or
-    dt-convergence study -- see its report for the accuracy/runtime
-    tradeoff made."
-  - "Behavior tests are authored (Tasks 7, 9-11) but not yet run through the
-    dashboard's Tests tab against the workspace's `.pbg/runs.jsonl` run log
-    (Task 8), so the PASS/FAIL verdicts above come from the runner scripts'
-    own printed checks, not the dashboard's evaluator."
+    (resolution in mesh-convergence beyond the AMR levels, rate in
+    reaction-diffusion, amplitude/mode in moving-boundary, lattice
+    density/mesh grading in complex-geometry) is untested. navier-stokes
+    and complex-geometry in particular are each a single production
+    mesh/dt point chosen for feasible wall-time, not mesh- or
+    dt-convergence studies in their own right."
+  - "Behavior tests are authored in every study.yaml but not yet driven
+    through the dashboard's Tests tab against the workspace's
+    `.pbg/runs.jsonl` run log, so the PASS/FAIL verdicts above come from
+    the runner scripts' own printed checks, not yet the dashboard's
+    evaluator."
   key_figures: []
   caveats:
-  - "The coupling composability claim is demonstrated for one three-process
-    wiring pattern (2x DiffusionProcess + GrayScottReactionProcess, and
-    separately the simpler 2-process DiffusionProcess/LogisticReactionProcess
-    Fisher-KPP pairing the same library still ships); it has not been
-    exercised against an unrelated fourth process to further stress-test
-    that the wiring pattern generalizes beyond diffusion+reaction."
+  - "The coupling-composability claim is demonstrated for three wiring
+    patterns (DiffusionProcess+LinearDegradationProcess for the morphogen
+    gradient, 2x DiffusionProcess+GrayScottReactionProcess for Turing
+    patterns, and the ALE mesh-motion+Navier-Stokes pairing for
+    peristalsis); it has not been exercised against a fourth, unrelated
+    process family to further stress-test that the wiring pattern
+    generalizes beyond diffusion/reaction/flow processes."
   - "The classic Gray-Scott 'spots' regime (F=0.035, k=0.065) was found
-    subcritical for this composite's Du/Dv/dt/domain-size combination during
-    development (every seeding strategy tried decayed back to the trivial
-    fixed point); the study's three regimes (coral/mitosis-like, labyrinth,
-    stripes) were chosen because they were verified to grow robustly, not
-    because they are the only regimes worth showing -- see the study report."
-  - "The three advanced studies (navier-stokes, moving-boundary,
-    complex-geometry) each stand on their own dolfinx bridge exercise --
-    they are not yet cross-wired into a single combined composite (e.g.
-    fluid flow on a deforming, non-rectangular domain), so the showcase
-    demonstrates breadth of individual capability, not their joint
-    composition."
+    subcritical for this composite's Du/Dv/dt/domain-size combination
+    during development; the study's three regimes (coral/mitosis-like,
+    labyrinth, stripes) were chosen because they were verified to grow
+    robustly, not because they are the only regimes worth showing -- and
+    none reached a fully mature, textbook-saturated pattern texture at the
+    production step count (honest pattern onset, not steady-state) -- see
+    the study report."
+  - "The three advanced studies (navier-stokes, complex-geometry,
+    moving-boundary) each stand on their own dolfinx bridge exercise -- the
+    porous lattice is not deforming, the vortex street is not flowing
+    through a porous medium, and moving-boundary's peristalsis is not
+    itself set in a complex (non-rectangular) geometry -- so the showcase
+    demonstrates breadth of individual advanced capability, not a single
+    combined composite exercising all three at once."
+  - "moving-boundary's ALE mesh-motion scheme (pure Laplacian smoothing) is
+    honestly reported to degrade (shrinking, and on finer meshes inverting,
+    cell areas) above occlusion amplitude~0.45-0.5 regardless of timestep
+    or mesh refinement; the amplitude sweep used (<=0.4) was chosen to stay
+    safely below that empirically-observed degeneracy onset, not because
+    the mesh-motion scheme is unconditionally robust."
 
 acceptance_criteria:
 - study: poisson-validation
-  behavior: l2-error-within-tolerance
+  behavior: p1-achieves-optimal-rate
+- study: poisson-validation
+  behavior: p3-achieves-optimal-rate
 - study: mesh-convergence
-  behavior: convergence-rate-matches-order
+  behavior: adaptive-beats-uniform-rate
+- study: mesh-convergence
+  behavior: refinement-concentrates-at-corner
 - study: transient-diffusion
-  behavior: mass-conserved
+  behavior: exponential-gradient
 - study: transient-diffusion
-  behavior: peak-decays
+  behavior: french-flag-thresholds
 - study: reaction-diffusion
   behavior: pattern-emerges
 - study: reaction-diffusion
@@ -214,15 +271,13 @@ acceptance_criteria:
   behavior: drag-in-benchmark-range
 - study: navier-stokes
   behavior: strouhal-in-range
-- study: moving-boundary
-  behavior: boundary-follows-prescribed-law
-- study: moving-boundary
-  behavior: domain-measure-scales-with-amplitude
-- study: moving-boundary
-  behavior: field-stays-finite
-- study: complex-geometry
-  behavior: mesh-imports-with-tagged-boundaries
 - study: complex-geometry
   behavior: stokes-flow-divergence-free-and-noslip
 - study: complex-geometry
   behavior: permeability-decreases-with-porosity
+- study: moving-boundary
+  behavior: net-flow-is-positive
+- study: moving-boundary
+  behavior: flow-grows-with-amplitude
+- study: moving-boundary
+  behavior: wall-motion-genuinely-deforms-domain

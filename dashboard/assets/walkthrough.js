@@ -2001,7 +2001,7 @@
   // columns to width, auto-fill); a slider overrides with a fixed count.
   window._cardCols = (function () {
     var d = {};
-    ['registry', 'composites', 'modules', 'market'].forEach(function (s) {
+    ['registry', 'composites', 'modules', 'market', 'isets'].forEach(function (s) {
       var v; try { v = localStorage.getItem('viv.cols.' + s); } catch (e) { v = null; }
       d[s] = (v && v !== 'auto' && !isNaN(+v)) ? Math.max(1, Math.min(8, +v)) : 'auto';
     });
@@ -2018,7 +2018,8 @@
   function _cardContainersFor(surface) {
     var sel = surface === 'registry' ? '.reg-cards-grid'
       : (surface === 'composites' ? '.ccard-rows'
-      : (surface === 'market' ? '.market-grid-cards' : '.mrows'));
+      : (surface === 'market' ? '.market-grid-cards'
+      : (surface === 'isets' ? '.investigations-grid' : '.mrows')));
     return Array.prototype.slice.call(document.querySelectorAll(sel));
   }
   function _colsControl(surface) {
@@ -2037,6 +2038,7 @@
       composites: ((window._compositesZoom || 'cards') === 'cards'),
       modules: ((window._catalogZoom || 'cards') === 'cards'),
       market: ((window._marketZoom || 'cards') === 'cards'),
+      isets: ((window._isetZoom || 'cards') === 'cards'),
     };
     Object.keys(show).forEach(function (s) {
       var slot = document.querySelector('.cols-ctl-slot[data-cols-surface="' + s + '"]');
@@ -2099,7 +2101,9 @@
   })();
 
   function _syncRegistryToolbar() {
-    document.querySelectorAll('.reg-zoom-btn').forEach(function (b) {
+    // Scoped to [data-zoom] — .reg-zoom-btn is shared with the Investigations/
+    // Studies zoom toolbar (data-izoom), which must not be touched here.
+    document.querySelectorAll('.reg-zoom-btn[data-zoom]').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-zoom') === window._registryZoom);
     });
   }
@@ -2297,7 +2301,7 @@
     var html = '<div class="reg-infopop-title">Composites using <code>' + _esc(name || '') + '</code></div>';
     html += comps.length
       ? '<ul class="reg-infopop-list">' + comps.map(function (c) {
-          return '<li><a href="#" onclick="_setRegistryTab(\'composite\');return false;">' + _esc(c.name) + '</a> <span class="muted">' + _esc(c.module || '') + '</span></li>';
+          return '<li><a href="#" onclick="_openCompositeExplorer(\'' + _esc(c.id) + '\');return false;" title="Open in the Composite Explorer">' + _esc(c.name) + '</a> <span class="muted">' + _esc(c.module || '') + '</span></li>';
         }).join('') + '</ul>'
       : '<p class="muted">Not required by any loaded composite spec' + (p.composite_uses ? ' (used via generators — open the Composites tab).' : '.') + '</p>';
     _regInfoPop(e, html);
@@ -2308,12 +2312,20 @@
   function _showProcessStudies(e, address) {
     var p = _registryEntryByAddress(address) || {};
     var sp = p.study_participation || p.studies || {};
+    var list = (sp && Array.isArray(sp.study_list)) ? sp.study_list : [];
+    var n = sp.studies || 0;
     var html = '<div class="reg-infopop-title">Study participation</div>' +
       '<div class="reg-infopop-stats">' +
-        '<div><strong>' + (sp.studies || 0) + '</strong> studies participated</div>' +
-      '</div>' + _successBar(sp) +
-      '<p class="muted reg-infopop-note">Individual study names aren\'t in the registry index yet — browse them under ' +
+        '<div><strong>' + n + '</strong> stud' + (n === 1 ? 'y' : 'ies') + ' participated</div>' +
+      '</div>' + _successBar(sp);
+    if (list.length) {
+      html += '<ul class="reg-infopop-list">' + list.map(function (slug) {
+        return '<li><a href="#" onclick="_openStudyEmbeddedNewTab(\'' + _esc(slug) + '\');return false;" title="Open this study">' + _esc(slug) + '</a></li>';
+      }).join('') + '</ul>';
+    } else {
+      html += '<p class="muted reg-infopop-note">Individual study names aren\'t indexed for this process yet — browse them under ' +
         '<a href="#investigations" onclick="_switchPage(\'investigations\');return false;">Studies</a>.</p>';
+    }
     _regInfoPop(e, html);
   }
   window._showProcessStudies = _showProcessStudies;
@@ -2367,6 +2379,7 @@
       '</div>' +
       _successBar(sp) +
       cfgPortsBtn +
+      _runCmdChip(p.run_command) +
     '</div>';
   }
 
@@ -2429,7 +2442,8 @@
     var open = !!opts.open;
     var caret = open ? '▾' : '▸';
     var cls = 'pcard-sec pcard-sec-' + key + (open ? ' pcard-sec-open' : '') +
-      (opts.wide ? ' pcard-sec-wide' : '') + (opts.resizable ? ' pcard-sec-resizable' : '');
+      (opts.wide ? ' pcard-sec-wide' : '') + (opts.resizable ? ' pcard-sec-resizable' : '') +
+      (opts.feature ? ' pcard-sec-feature' : '');
     // Resizable sections get a drag grip: drag to set height, double-click to fit.
     var grip = opts.resizable
       ? '<div class="pcard-sec-grip" title="Drag to resize · double-click to fit contents" ' +
@@ -2677,8 +2691,11 @@
       : '<div class="cfg-list" data-role="inputs"><span class="muted loom-load-hint">resolving defaults…</span></div>';
 
     // Run is a persistent bar (not an accordion) — only for runnable kinds.
-    var runBar = nonRun ? '' : _pcardRunBar(timestep +
-      '<button class="action-btn" onclick="_runRegistryProcess(this)">▶ Run</button>' +
+    // Same treatment as the composite card: the ▶ RUN label IS the button, with
+    // the Timestep/step-note beside it (no separate white Run button).
+    var runBar = nonRun ? '' : _pcardRunBar(
+      '<button class="pcard-run-go" type="button" onclick="_runRegistryProcess(this)">▶ Run</button>' +
+      timestep +
       '<span class="pcard-run-out" data-role="run-inline-status"></span>');
 
     var outputsBody = nonRun
@@ -2786,17 +2803,51 @@
   // composite is mostly top-level, so Inputs/Outputs are informational; the
   // value is Configure (its parameters) + Explore (its internal wiring).
   function _compositeLoomExplore(c) {
-    var liveBar = (document.body.classList.contains('snapshot') || c.read_only) ? '' :
-      '<div class="ccard-loom-bar">' +
-        '<span class="ccard-loom-mode">Read-only preview</span>' +
-        '<button class="ccard-loom-live-btn" onclick="_enableInlineLoomRun(this)"' +
-          ' title="Reload live to edit config and Run in place">&#9654; Enable running</button>' +
-      '</div>';
+    // The loom is a read-only VIEWER: config is edited in the Configure section
+    // and running is the ▶ RUN bar below — so no "Enable running" / live toggle.
     return '<div class="ccard-loom-embed pcard-loom" data-id="' + _esc(c.id) + '">' +
-      liveBar +
       '<div class="ccard-loom-frame"><p class="muted" style="padding:10px;font-size:0.85em">Resolving composite &amp; rendering the bigraph…</p></div>' +
     '</div>';
   }
+
+  // Shared "how to run this in your terminal" chip: a copy-pasteable one-line
+  // command + a copy button, rendered on composite/process cards and the
+  // investigation graph. The canonical command strings come from the server
+  // (lib/run_commands.py, mirrored per surface); this only presents + copies
+  // them. Self-contained inline styles (no CSS-file dependency). A long command
+  // (e.g. the process one-liner) truncates with ellipsis; hover/copy give the
+  // full text. onclick stopPropagation so it never triggers the card's select.
+  function _runCmdChip(cmd) {
+    if (!cmd) return '';
+    var full = _esc(cmd);
+    return '<div class="run-cmd-chip" onclick="event.stopPropagation()" ' +
+        'style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:4px 6px;' +
+        'background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72em;min-width:0">' +
+      '<span aria-hidden="true" style="color:#94a3b8;flex:none;font-family:ui-monospace,monospace">$</span>' +
+      '<code title="' + full + '" style="flex:1 1 auto;min-width:0;overflow:hidden;' +
+        'text-overflow:ellipsis;white-space:nowrap;color:#334155;' +
+        'font-family:ui-monospace,SFMono-Regular,Menlo,monospace">' + full + '</code>' +
+      '<button type="button" class="run-cmd-copy" data-cmd="' + full + '" ' +
+        'onclick="event.stopPropagation();_copyRunCmd(this)" title="Copy command" ' +
+        'style="flex:none;font-size:0.95em;cursor:pointer;border:1px solid #cbd5e1;' +
+        'background:#fff;border-radius:4px;padding:1px 6px;color:#475569">copy</button>' +
+    '</div>';
+  }
+  window._runCmdChip = _runCmdChip;
+
+  function _copyRunCmd(btn) {
+    var cmd = btn && btn.getAttribute('data-cmd');
+    if (!cmd) return;
+    var done = function () {
+      var prev = btn.getAttribute('data-label') || 'copy';
+      btn.textContent = 'copied'; btn.style.color = '#047857';
+      setTimeout(function () { btn.textContent = prev; btn.style.color = '#475569'; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(cmd).then(done, done);
+    } else { done(); }
+  }
+  window._copyRunCmd = _copyRunCmd;
 
   // Compact composite card (Cards / medium zoom) — mirrors the process grid
   // card: name · badge · address · short desc · usage stats.
@@ -2814,6 +2865,7 @@
           '<div class="reg-card-head"><strong class="reg-card-name">' + _esc(c.name) + '</strong>' + _compositeBadge() + wsPill + '</div>' +
           '<code class="reg-card-addr">' + _esc(addr) + '</code>' +
           (short ? '<p class="reg-card-desc">' + _esc(short) + '</p>' : '') +
+          _runCmdChip(c.run_command) +
         '</div>' +
         '<div class="reg-card-stats">' + stats + '</div>' +
       '</div>' +
@@ -2937,6 +2989,20 @@
   // Poll a launched composite run and render its progress → visualizations into
   // the card's Outputs panel. /api/composite-run/<id>/status returns
   // {status, progress_step, n_steps, ...} and, on completion, viz_html.
+  // When a composite run finishes: reset the ▶ RUN button from its "Running…"
+  // indicator and drop the Outputs section open so the results are visible.
+  function _endRunIndicator(card, statusText) {
+    var b = card && card._runBtn;
+    if (b) { b.disabled = false; b.textContent = card._runBtnOrig || '▶ Run'; card._runBtn = null; }
+    var st = card && card.querySelector('.pcard-run-status');
+    if (st) { st.classList.remove('pcard-apply-err'); if (statusText != null) st.innerHTML = statusText; }
+  }
+  function _openOutputsSection(card) {
+    var sec = card && card.querySelector('.pcard-sec-outputs');
+    if (sec && !sec.classList.contains('pcard-sec-open')) {
+      var h = sec.querySelector('.pcard-sec-head'); if (h) _pcardToggleSec(h);
+    }
+  }
   function _pollCompositeRun(card, runId) {
     var panel = card.querySelector('[data-role="out-panel"]'); if (!panel) return;
     var dl = _api('/api/composite-run/' + encodeURIComponent(runId) + '/download');
@@ -2976,10 +3042,14 @@
                 ? '<iframe class="pcard-out-viz" sandbox="allow-scripts allow-same-origin"></iframe>'
                 : '<p class="muted">This run produced no inline visualization. Use Download ZIP' + (j.has_report || j.has_analyses ? ' / the report/analyses above' : '') + ', or open it in ' + runsLink + '.</p>');
             if (htmls.length) { var f = panel.querySelector('.pcard-out-viz'); if (f) f.srcdoc = htmls.join('\n<hr>\n'); }
+            _endRunIndicator(card, '✓ done — see Outputs');
+            _openOutputsSection(card);   // drop Outputs open now that results are ready
           } else {   // failed / orphaned / error
             panel.innerHTML = '<div class="pcard-out-run"><p class="pcard-out-empty-title loom-run-err">✗ ' + _esc(st) + '</p>' +
               (j.error ? '<pre class="loom-run-pre">' + _esc(String(j.error)) + '</pre>' : '') +
               '<p class="muted">Details under ' + runsLink + '.</p></div>';
+            _endRunIndicator(card, '✗ ' + _esc(st));
+            _openOutputsSection(card);
           }
         })
         .catch(function () { if (card._pollRun === runId) setTimeout(tick, 3000); });
@@ -3030,14 +3100,13 @@
 
     var topNote = '<p class="muted pcard-toplevel-note">Top-level composite — its interface is the internal wiring (see Explore), not bridge ports.</p>';
     var runBar = _pcardRunBar(
-      // A titled row matching the accordion section heads (▶ RUN), with the
-      // Steps selector + Run button living on the same bar.
-      '<span class="pcard-sec-caret pcard-run-glyph">▶</span>' +
-      '<span class="pcard-sec-name">Run</span>' +
-      (c.read_only
-        ? '<span class="muted pcard-run-note">read-only composite — enable running inside Explore to run in place</span>'
-        : '<label class="loom-run-field loom-run-interval-field">Steps <input type="number" step="1" min="1" class="pcard-run-time" placeholder="e.g. 10"></label>' +
-          '<button class="action-btn" onclick="_runComposite(this)">▶ Run</button>'));
+      // The ▶ RUN label IS the run button (its whole side of the bar), with the
+      // Steps selector beside it — no separate Run button on the right.
+      c.read_only
+        ? '<span class="pcard-run-go pcard-run-go-disabled" aria-disabled="true">▶ Run</span>' +
+          '<span class="muted pcard-run-note">read-only composite — enable running inside Explore to run in place</span>'
+        : '<button class="pcard-run-go" type="button" onclick="_runComposite(this)">▶ Run</button>' +
+          '<label class="loom-run-field loom-run-interval-field">Steps <input type="number" step="1" min="1" class="pcard-run-time" placeholder="e.g. 10"></label>');
 
     // Outputs = the launched run's live status → its visualizations. A composite
     // run is detached; _runComposite stores the run_id and _pollCompositeRun
@@ -3070,9 +3139,9 @@
           '</div>' +
         '</div>' +
         '<div class="pcard-acc">' +
+          _pcardSection('explore', 'Explore', '<span class="pcard-sec-hint">◆ Interactive bigraph — click to open</span>', _compositeLoomExplore(c), { wide: true, feature: true }) +
           _pcardSection('configure', 'Configure', '<span class="pcard-sec-count">' + nCfg + '</span><span class="pcard-config-chips" data-role="config-chips" hidden></span>', configBody, { resizable: true }) +
           _pcardSection('inputs', 'Inputs', '<span class="pcard-sec-count">0</span>', topNote) +
-          _pcardSection('explore', 'Explore', '', _compositeLoomExplore(c), { wide: true }) +
           runBar +
           _pcardSection('outputs', 'Outputs', '', outputsBody) +
         '</div>' +
@@ -3175,22 +3244,23 @@
     fetch(_api('/api/composite-test-run'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
       .then(function (res) {
-        btn.disabled = false; btn.textContent = orig;
         var rid = res.j && res.j.run_id;
-        if (res.status === 202 || rid) {
-          if (status) {
-            status.classList.remove('pcard-apply-err');
-            status.innerHTML = '✓ launched — tracking in Outputs';
-          }
-          if (rid) {
-            // Open Outputs and track the run's progress → visualizations there.
-            var sec = card.querySelector('.pcard-sec-outputs');
-            if (sec && !sec.classList.contains('pcard-sec-open')) { var h = sec.querySelector('.pcard-sec-head'); if (h) _pcardToggleSec(h); }
-            _pollCompositeRun(card, rid);
-          }
+        if ((res.status === 202 || rid) && rid) {
+          // Keep the ▶ RUN button as a live "Running…" indicator until the poll
+          // resolves; the Outputs section auto-drops-down when results are READY
+          // (see _pollCompositeRun's completed / failed branches).
+          btn.disabled = true; btn.textContent = '⏳ Running…';
+          card._runBtn = btn; card._runBtnOrig = orig;
+          if (status) { status.classList.remove('pcard-apply-err'); status.innerHTML = '<span class="pcard-run-live">● running…</span>'; }
+          _pollCompositeRun(card, rid);
+        } else if (res.status === 202 || rid) {
+          btn.disabled = false; btn.textContent = orig;
+          if (status) { status.classList.remove('pcard-apply-err'); status.innerHTML = '✓ launched — tracking in Outputs'; }
         } else if (res.status === 429) {
+          btn.disabled = false; btn.textContent = orig;
           setErr('too many runs in progress — try again shortly');
         } else {
+          btn.disabled = false; btn.textContent = orig;
           setErr('✗ ' + ((res.j && res.j.error) || ('HTTP ' + res.status)));
         }
       })
@@ -4788,19 +4858,10 @@
   // read-only, via the loom's static stateUrl pointed at live composite-resolve.
   function _compositeLoomEmbed(c) {
     if (c.read_only && !c.has_wiring) return '';
-    // On a live dashboard the inline loom loads read-only (lightweight); a bar
-    // lets the reader flip it to live mode (editable config + Run) in place, the
-    // same as popping out. Not offered in a published snapshot (no run backend).
-    var liveBar = (document.body.classList.contains('snapshot') || c.read_only) ? '' :
-      '<div class="ccard-loom-bar">' +
-        '<span class="ccard-loom-mode">Read-only preview</span>' +
-        '<button class="ccard-loom-live-btn" onclick="_enableInlineLoomRun(this)"' +
-          ' title="Reload this loom live so you can edit config and Run it here, as in the pop-out view">' +
-          '&#9654; Enable running</button>' +
-      '</div>';
+    // Read-only viewer only — config is edited in Configure, running is the
+    // external ▶ RUN bar; no in-place "Enable running" toggle.
     return '<details class="ccard-loom-embed" data-id="' + _esc(c.id) + '" ontoggle="_openCompositeLoomInline(this)">' +
       '<summary>Open loom</summary>' +
-      liveBar +
       '<div class="ccard-loom-frame"><p class="muted" style="padding:10px;font-size:0.85em">Expand to resolve &amp; render the bigraph…</p></div>' +
     '</details>';
   }
@@ -4926,11 +4987,18 @@
     // (e.g. "visualizations"/"results"/"document") selects which loom tab the
     // embed shows — used by the card's Outputs section.
     var tabParam = det.getAttribute('data-view') ? '&tab=' + encodeURIComponent(det.getAttribute('data-view')) : '';
+    // On a live dashboard the view-only loom still carries the composite id +
+    // live=1 so drilling into an inner Composite (a Composite Process like
+    // EcoliWCM) resolves via the live /api/composite-inner-state endpoint —
+    // static=1 alone (a published snapshot) would look for a pre-built file that
+    // only a snapshot ships. Omit both under body.snapshot (truly no server).
+    var liveInner = document.body.classList.contains('snapshot')
+      ? '' : '&id=' + encodeURIComponent(id) + '&live=1';
     var loomUrl = det._loomLive
       ? apiUrl('/bigraph-loom/index.html') + '?id=' + encodeURIComponent(id) +
           (det._overrides ? '&overrides=' + encodeURIComponent(det._overrides) : '') + '&chrome=off' + tabParam
       : apiUrl('/bigraph-loom/index.html') + '?static=1&stateUrl=' +
-          encodeURIComponent(_compositeStateUrl(id, det._overrides)) + '&chrome=off' + tabParam;
+          encodeURIComponent(_compositeStateUrl(id, det._overrides)) + liveInner + '&chrome=off' + tabParam;
     var f = document.createElement('iframe');
     f.className = 'ccard-loom-iframe';
     f.setAttribute('title', 'Loom — ' + id);
@@ -6412,6 +6480,15 @@
     return 'https://github.com/vivarium-collective/' + repo;
   }
   // Merge the catalog (repo universe) with loaded artifacts (fine per-type counts).
+  // viva-* UI label for a module/repo name — mirrors catalog._viva_display_name
+  // so artifact-derived repos (no curated display_name) still read viva-*.
+  // pbg-torch / pbg_torch -> viva-torch; already-viva / non-pbg pass through.
+  function _vivaLabel(name) {
+    if (!name) return name;
+    var s = String(name), low = s.toLowerCase();
+    if (low.indexOf('pbg-') === 0 || low.indexOf('pbg_') === 0) return 'viva-' + s.slice(4).replace(/_/g, '-');
+    return s;
+  }
   function _marketRepoList() {
     var wsName = _marketRepoNorm(window._workspaceName || '');
     var byRepo = {};
@@ -6432,6 +6509,9 @@
       if (m.description && !b.desc) b.desc = m.description;
       if (m.installed === false) b.installed = false;
       if (!b.installName) b.installName = m.name || m.package || '';
+      // viva-* UI label (catalog carries it; name/installName stay pbg-* so
+      // install/uninstall resolution is unchanged). Workspace pkg has none.
+      if (m.display_name && !b.display_name) b.display_name = m.display_name;
       b._cat = m;
     });
     // 2) Per-type counts from the loaded registry/composites/studies/investigations.
@@ -6521,7 +6601,7 @@
     return '<div class="market-card repo-card' + (b.isWorkspace ? ' repo-card-ws' : '') + '">'
       + '<div class="repo-card-head">'
       +   '<span class="repo-ico">📦</span>'
-      +   '<a class="repo-name" href="' + _esc(b.url) + '" target="_blank" rel="noopener">' + _esc(b.repo) + '</a>'
+      +   '<a class="repo-name" href="' + _esc(b.url) + '" target="_blank" rel="noopener">' + _esc(_vivaLabel(b.display_name || b.repo)) + '</a>'
       +   _repoBadge(b)
       + '</div>'
       + (b.desc ? '<div class="repo-desc">' + _esc(b.desc) + '</div>' : '')
@@ -6533,7 +6613,7 @@
     return '<div class="market-card repo-card repo-card-detail' + (b.isWorkspace ? ' repo-card-ws' : '') + '">'
       + '<div class="repo-card-head">'
       +   '<span class="repo-ico">📦</span>'
-      +   '<a class="repo-name" href="' + _esc(b.url) + '" target="_blank" rel="noopener">' + _esc(b.repo) + '</a>'
+      +   '<a class="repo-name" href="' + _esc(b.url) + '" target="_blank" rel="noopener">' + _esc(_vivaLabel(b.display_name || b.repo)) + '</a>'
       +   _repoBadge(b)
       + '</div>'
       + (b.desc ? '<div class="repo-desc repo-desc-full">' + _esc(b.desc) + '</div>' : '')
@@ -6558,7 +6638,7 @@
         ? '<span class="repo-affected" title="studies in your investigations that depend on this repo">' + b.affected + '</span>'
         : '<span class="repo-td-zero">—</span>';
       return '<tr class="repo-tr">'
-        + '<td class="market-td-name">📦 ' + _esc(b.repo)
+        + '<td class="market-td-name">📦 ' + _esc(_vivaLabel(b.display_name || b.repo))
         +   (b.desc ? '<span class="market-td-desc">' + _esc(b.desc) + '</span>' : '') + '</td>'
         + '<td>' + _repoBadge(b) + '</td>'
         + '<td class="repo-td-num">' + (b.process || '—') + '</td>'
@@ -9080,16 +9160,68 @@
   }
   window._showInvestigationList = _showInvestigationList;
 
+  // ── Investigations/Studies semantic zoom ────────────────────────────────
+  // Same 3-level framework as the Registry: 'table' (dense, sortable-looking)
+  // | 'cards' (grid — the historical default) | 'full' (cards with detail
+  // expanded). Drives BOTH the Investigations and Studies browse tabs.
+  // Persists in localStorage, mirroring window._registryZoom.
+  window._isetZoom = (function () {
+    var z; try { z = localStorage.getItem('viv.isetZoom'); } catch (e) { z = null; }
+    return (z === 'table' || z === 'cards' || z === 'full') ? z : 'cards';
+  })();
+  function _syncIsetToolbar() {
+    // Scoped to [data-izoom] — .reg-zoom-btn is shared with the Registry zoom
+    // toolbar (data-zoom), which must not be touched here.
+    document.querySelectorAll('.reg-zoom-btn[data-izoom]').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-izoom') === window._isetZoom);
+    });
+    // Populate + show/hide the column-count control (Cards zoom only).
+    if (typeof _syncColsControls === 'function') _syncColsControls();
+  }
+
+  // Apply the chosen column count to the visible investigation/study card grids.
+  // Only in the Cards zoom — Table has no grid, and Full is a fixed wide layout.
+  function _applyIsetCols() {
+    if ((window._isetZoom || 'cards') !== 'cards') return;
+    _cardContainersFor('isets').forEach(function (c) { _applyCardCols(c, 'isets'); });
+  }
+  window._syncIsetToolbar = _syncIsetToolbar;
+  function _setIsetZoom(z) {
+    window._isetZoom = z;
+    try { localStorage.setItem('viv.isetZoom', z); } catch (e) { /* private mode */ }
+    _syncIsetToolbar();
+    _renderInvestigationSets();
+  }
+  window._setIsetZoom = _setIsetZoom;
+  // Double-click a card → zoom in one level (table → cards → full), mirroring
+  // the Registry's _zoomInOn.
+  function _isetZoomIn() {
+    var order = ['table', 'cards', 'full'];
+    var i = order.indexOf(window._isetZoom || 'cards');
+    _setIsetZoom(order[Math.min(order.length - 1, i + 1)]);
+  }
+  window._isetZoomIn = _isetZoomIn;
+
   function _renderInvestigationSets() {
     var list = document.getElementById('investigations-list');
     if (!list) return;
+    _syncIsetToolbar();
     if (window._isetBrowseTab === 'studies') {
-      if (window._isetStudyView === 'table') _renderStudyBrowseTable(list);
-      else _renderStudyBrowseCards(list);
+      if (window._isetZoom === 'table') _renderStudyBrowseTable(list);
+      else _renderStudyBrowseCards(list, window._isetZoom === 'full');
       return;
     }
     if (!window._isetIndex.length) {
       list.innerHTML = '<p class="empty-state">No investigations declared. Author one at <code>investigations/&lt;name&gt;/investigation.yaml</code>.</p>';
+      return;
+    }
+    if (window._isetZoom === 'table') {
+      _renderInvestigationTable(window._isetIndex, list);
+      _filterInvestigations();
+      var _icT = document.getElementById('iset-tab-inv-count');
+      if (_icT) _icT.textContent = (window._isetIndex || []).length || '';
+      var _scT = document.getElementById('iset-tab-study-count');
+      if (_scT) _scT.textContent = (window._investigations || []).length || '';
       return;
     }
     // Closed/archived sink to the bottom; baseline floats to the top; else
@@ -9105,9 +9237,10 @@
       return a[1] - b[1];
     });
 
-    function _isetCardHtml(iset) {
+    function _isetCardHtml(iset, full) {
       var closed = (iset.status === 'archived' || iset.status === 'closed');
-      var desc = (iset.description || '').split('\n')[0].slice(0, 240);
+      var descFull = (iset.description || '').split('\n')[0];
+      var desc = full ? descFull : descFull.slice(0, 240);
       // Prefer server effective_status; fall back to author status. Intent
       // divergence goes into the status-pill tooltip (not a separate line).
       var effStatus  = iset.effective_status || iset.status || 'planning';
@@ -9174,13 +9307,14 @@
           '<span style="margin-left:auto;color:#94a3b8">' + _esc(m[1]) + '</span></a>';
       }).join('');
 
+      var qFull = iset.question ? String(iset.question).split('\n')[0] : '';
       var qLine = iset.question
-        ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:#334155"><span style="color:#94a3b8;font-weight:600">Q</span> ' + _esc(String(iset.question).split('\n')[0].slice(0, 200)) + '</p>'
-        : (desc ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:#475569">' + _esc(desc) + (iset.description.length > 240 ? '…' : '') + '</p>' : '');
+        ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:#334155"><span style="color:#94a3b8;font-weight:600">Q</span> ' + _esc(full ? qFull : qFull.slice(0, 200)) + '</p>'
+        : (desc ? '<p style="margin:0 0 6px 0;font-size:0.9em;color:#475569">' + _esc(desc) + (!full && iset.description.length > 240 ? '…' : '') + '</p>' : '');
       var lifeChip = iset.lifecycle && iset.lifecycle !== 'active'
         ? '<span style="font-size:0.72em;color:#64748b;background:#f1f5f9;border-radius:9999px;padding:1px 8px">' + _esc(iset.lifecycle) + '</span>' : '';
 
-      return '<div class="investigation-set-card' + (iset.read_only ? ' federated-readonly' : '') + '" onclick="_showInvestigationWorkspace(\'' + _esc(iset.name) + '\')" ' +
+      return '<div class="investigation-set-card' + (full ? ' iset-card-full' : '') + (iset.read_only ? ' federated-readonly' : '') + '" onclick="_showInvestigationWorkspace(\'' + _esc(iset.name) + '\')" ondblclick="_isetZoomIn()" ' +
              'title="' + _esc(iset.name) + '" ' +
              'data-iset-title="' + _esc(String(iset.title || iset.name).toLowerCase()) + '" ' +
              'data-iset-slug="' + _esc(String(iset.name).toLowerCase()) + '" ' +
@@ -9197,7 +9331,7 @@
         '<div style="display:flex;align-items:center;gap:12px;font-size:0.85em;color:#64748b">' +
           '<span class="iset-studies-toggle" role="button" tabindex="0" ' +
             'onclick="event.stopPropagation();var d=this.closest(\'.investigation-set-card\').querySelector(\'.iset-studies-detail\');var open=d.style.display===\'none\';d.style.display=open?\'block\':\'none\';this.querySelector(\'.iset-chev\').textContent=open?\'▾\':\'▸\'" ' +
-            'style="flex:1;cursor:pointer;user-select:none"><strong>' + iset.n_studies + '</strong> stud' + (iset.n_studies === 1 ? 'y' : 'ies') + ' <span class="iset-chev" style="color:#94a3b8">▸</span></span>' +
+            'style="flex:1;cursor:pointer;user-select:none"><strong>' + iset.n_studies + '</strong> stud' + (iset.n_studies === 1 ? 'y' : 'ies') + ' <span class="iset-chev" style="color:#94a3b8">' + (full ? '▾' : '▸') + '</span></span>' +
           '<a href="#" title="Download the rendered HTML report for this investigation" ' +
             'onclick="window._vivReportFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
             'style="color:#3b82f6;text-decoration:none;white-space:nowrap">↓ report</a>' +
@@ -9205,18 +9339,21 @@
             'onclick="window._vivNotebookFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
             'style="color:#3b82f6;text-decoration:none;white-space:nowrap">↓ notebook</a>' +
         '</div>' +
-        '<div class="iset-studies-detail" style="display:none;margin-top:8px;border-top:1px solid #f1f5f9;padding-top:6px">' + (studyRows || '<span class="muted" style="font-size:0.85em">No studies.</span>') + '</div>' +
+        '<div class="iset-studies-detail" style="display:' + (full ? 'block' : 'none') + ';margin-top:8px;border-top:1px solid #f1f5f9;padding-top:6px">' + (studyRows || '<span class="muted" style="font-size:0.85em">No studies.</span>') + '</div>' +
+        // "Run this investigation in your terminal" chip (like the composite/process card).
+        _runCmdChip(iset.run_command || ('vwb run investigation ' + iset.name)) +
       '</div>';
     }
 
     var GRID = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;margin:6px 0 14px';
+    var _isetFull = (window._isetZoom === 'full');
     function _groupHtml(label, items) {
       if (!items.length) return '';
       return '<div class="iset-group" data-group-label="' + label + '">' +
         '<h3 class="iset-group-head" style="font-size:0.9em;color:#475569;font-weight:700;margin:10px 0 2px;text-transform:uppercase;letter-spacing:0.04em">' +
           label + ' <span class="iset-group-count" style="color:#94a3b8;font-weight:600">(' + items.length + ')</span></h3>' +
         '<div class="investigations-grid" style="' + GRID + '">' +
-          items.map(_isetCardHtml).join('') +
+          items.map(function (iset) { return _isetCardHtml(iset, _isetFull); }).join('') +
         '</div>' +
       '</div>';
     }
@@ -9261,6 +9398,7 @@
       _groupHtml('Closed', _sortIsets(closedItems)) +
       '<p id="investigations-empty" class="empty-state" style="display:none">No investigations match the filter.</p>';
 
+    _applyIsetCols();
     _filterInvestigations();
 
     var _ic = document.getElementById('iset-tab-inv-count');
@@ -9296,15 +9434,15 @@
     });
     var createBtn = document.getElementById('iset-browse-create');
     if (createBtn) createBtn.textContent = (tab === 'studies') ? '+ Study' : '+ Investigation';
-    // The Cards/Table view toggle + tip are Studies-only.
-    var viewToggle = document.getElementById('iset-study-view-toggle');
-    if (viewToggle) viewToggle.style.display = (tab === 'studies') ? 'inline-flex' : 'none';
+    // The zoom toolbar (#iset-zoom-toolbar) is always visible on both tabs —
+    // only the "click a card's studies count" tip is Studies-only.
     var tip = document.getElementById('iset-list-tip');
     if (tip) tip.style.display = (tab === 'studies') ? 'none' : '';
     var invCount = document.getElementById('iset-tab-inv-count');
     var studyCount = document.getElementById('iset-tab-study-count');
     if (invCount) invCount.textContent = (window._isetIndex || []).length || '';
     if (studyCount) studyCount.textContent = (window._investigations || []).length || '';
+    _syncIsetToolbar();
     _renderInvestigationSets();
   }
   window._setIsetBrowseTab = _setIsetBrowseTab;
@@ -9640,18 +9778,19 @@
   };
   function _studyDotMeta(st) { return _STUDY_DOT[st] || _STUDY_DOT.planned; }
 
-  function _studyBrowseCardHtml(s) {
+  function _studyBrowseCardHtml(s, full) {
     var status = s.effective_status || s.status || 'planned';
     var m = _studyDotMeta(status);
     var inv = _investigationForStudy(s.name);
     var q = s.question || s.objective || '';
+    var qText = String(q).split('\n')[0];
     var nRuns = (s.n_runs !== undefined) ? s.n_runs
               : (s.n_simulations !== undefined ? s.n_simulations : 0);
     var cardStyle = 'background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;cursor:pointer;transition:box-shadow 0.1s,border-color 0.1s;';
     var partOf = (s.investigations && s.investigations.length)
       ? '<div style="font-size:0.78em;color:#94a3b8;margin:0 0 6px">part of: ' + _esc(s.investigations.join(', ')) + '</div>'
       : '';
-    return '<div class="investigation-set-card' + (s.read_only ? ' federated-readonly' : '') + '" onclick="_openStudyEmbeddedNewTab(\'' + _esc(s.name) + '\')" ' +
+    return '<div class="investigation-set-card' + (full ? ' iset-card-full' : '') + (s.read_only ? ' federated-readonly' : '') + '" onclick="_openStudyEmbeddedNewTab(\'' + _esc(s.name) + '\')" ondblclick="_isetZoomIn()" ' +
            'title="' + _esc(s.name) + '" ' +
            'data-iset-title="' + _esc(String(s.title || s.name).toLowerCase()) + '" ' +
            'data-iset-slug="' + _esc(String(s.name).toLowerCase()) + '" ' +
@@ -9665,15 +9804,17 @@
       '</div>' +
       (inv ? '<div style="font-size:0.78em;color:#94a3b8;margin:0 0 6px"><span style="color:#cbd5e1">▪</span> ' + _esc(inv) + '</div>' : '') +
       partOf +
-      (q ? '<p style="margin:0 0 8px 0;font-size:0.9em;color:#334155"><span style="color:#94a3b8;font-weight:600">Q</span> ' + _esc(String(q).split('\n')[0].slice(0, 180)) + '</p>' : '') +
+      (q ? '<p style="margin:0 0 8px 0;font-size:0.9em;color:#334155"><span style="color:#94a3b8;font-weight:600">Q</span> ' + _esc(full ? qText : qText.slice(0, 180)) + '</p>' : '') +
       '<div style="display:flex;align-items:center;gap:12px;font-size:0.85em;color:#64748b">' +
         '<span style="flex:1"><strong>' + nRuns + '</strong> run' + (nRuns === 1 ? '' : 's') + '</span>' +
         '<span style="color:#3b82f6">open ↗</span>' +
       '</div>' +
+      // "Run this study in your terminal" chip (like the composite/process card).
+      _runCmdChip(s.run_command || ('vwb run study ' + s.name)) +
     '</div>';
   }
 
-  function _renderStudyBrowseCards(list) {
+  function _renderStudyBrowseCards(list, full) {
     var studies = (window._investigations || []).slice();
     if (!studies.length) {
       list.innerHTML = '<p class="empty-state">No studies in this workspace yet.</p>';
@@ -9710,9 +9851,10 @@
         '<h3 class="iset-group-head" style="font-size:0.9em;color:#475569;font-weight:700;margin:10px 0 2px;text-transform:uppercase;letter-spacing:0.04em">' +
         _esc(titleFor(inv)) + ' <span style="color:#94a3b8;font-weight:600">(' + items.length + ')</span></h3>' +
         '<div class="investigations-grid" style="' + GRID + '">' +
-        items.map(_studyBrowseCardHtml).join('') + '</div></div>';
+        items.map(function (s) { return _studyBrowseCardHtml(s, full); }).join('') + '</div></div>';
     }).join('') +
       '<p id="investigations-empty" class="empty-state" style="display:none">No studies match the filter.</p>';
+    _applyIsetCols();
     _filterInvestigations();
   }
 
@@ -9793,20 +9935,61 @@
   }
   window._setStudyTableSort = _setStudyTableSort;
 
-  function _setStudyView(mode) {
-    window._isetStudyView = mode;
-    var cardsBtn = document.getElementById('iset-view-cards');
-    var tableBtn = document.getElementById('iset-view-table');
-    [[cardsBtn, mode === 'cards'], [tableBtn, mode === 'table']].forEach(function (pair) {
-      var btn = pair[0], on = pair[1];
-      if (!btn) return;
-      btn.style.background = on ? '#eef2ff' : '#fff';
-      btn.style.color = on ? '#1e293b' : '#64748b';
-      btn.style.fontWeight = on ? '600' : '400';
-    });
-    _renderInvestigationSets();
+  // Investigations TABLE view — dense, one row per investigation (same look as
+  // _renderStudyBrowseTable). Row click opens the investigation workspace; the
+  // report/notebook links mirror the card actions (_vivReportFromCard /
+  // _vivNotebookFromCard already stopPropagation internally).
+  var _ISET_TABLE_STATUS_META = {
+    planning:    {label:'Planned',     bg:'#f1f5f9', fg:'#475569', bd:'#cbd5e1'},
+    in_progress: {label:'In progress', bg:'#fef9c3', fg:'#854d0e', bd:'#fde047'},
+    running:     {label:'Running now', bg:'#dbeafe', fg:'#1e40af', bd:'#93c5fd'},
+    complete:    {label:'Complete',    bg:'#dcfce7', fg:'#166534', bd:'#86efac'},
+    failed:      {label:'Failed',      bg:'#fee2e2', fg:'#991b1b', bd:'#fca5a5'}
+  };
+  function _renderInvestigationTable(isets, mountEl) {
+    var items = (isets || []).slice();
+    if (!items.length) {
+      mountEl.innerHTML = '<p class="empty-state">No investigations declared. Author one at <code>investigations/&lt;name&gt;/investigation.yaml</code>.</p>';
+      return;
+    }
+    var th = [['Name', 'left'], ['Status', 'left'], ['Studies', 'right'], ['Question', 'left'], ['Links', 'left']]
+      .map(function (c) {
+        return '<th style="text-align:' + c[1] + ';position:sticky;top:0;background:#f8fafc;padding:7px 10px;' +
+          'font-size:0.78em;text-transform:uppercase;letter-spacing:0.03em;color:#475569;' +
+          'border-bottom:1px solid #e5e7eb;white-space:nowrap">' + c[0] + '</th>';
+      }).join('');
+    var rows = items.map(function (iset) {
+      var closed = (iset.status === 'archived' || iset.status === 'closed');
+      var effStatus = iset.effective_status || iset.status || 'planning';
+      var meta = _ISET_TABLE_STATUS_META[effStatus] || {label: effStatus, bg:'#f1f5f9', fg:'#475569', bd:'#cbd5e1'};
+      var pillBase = 'font-size:0.72em;border-radius:9999px;padding:1px 9px;white-space:nowrap;';
+      var statusPill = closed
+        ? '<span class="status-pill" style="' + pillBase + 'background:#e5e7eb;color:#4b5563;border:1px solid #d1d5db">Closed</span>'
+        : '<span class="status-pill" style="' + pillBase + 'background:' + meta.bg + ';color:' + meta.fg + ';border:1px solid ' + meta.bd + '">' + _esc(meta.label) + '</span>';
+      var q = iset.question ? String(iset.question).split('\n')[0].slice(0, 140) : '';
+      var rowText = (String(iset.title || iset.name) + ' ' + effStatus + ' ' + q).toLowerCase();
+      return '<tr data-row-text="' + _esc(rowText) + '" onclick="_showInvestigationWorkspace(\'' + _esc(iset.name) + '\')" ' +
+        'style="cursor:pointer;border-bottom:1px solid #f1f5f9' + (closed ? ';opacity:0.6' : '') + '" ' +
+        'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
+        '<td style="padding:7px 10px;font-weight:600;color:#1e293b">' + _esc(iset.title || iset.name) + '</td>' +
+        '<td style="padding:7px 10px;white-space:nowrap">' + statusPill + '</td>' +
+        '<td style="padding:7px 10px;text-align:right;color:' + (iset.n_studies ? '#1e293b' : '#cbd5e1') + '">' + (iset.n_studies || 0) + '</td>' +
+        '<td style="padding:7px 10px;color:#64748b">' + (q ? _esc(q) : '<span style="color:#cbd5e1">—</span>') + '</td>' +
+        '<td style="padding:7px 10px;white-space:nowrap;font-size:0.85em">' +
+          '<a href="#" title="Download the rendered HTML report for this investigation" ' +
+            'onclick="window._vivReportFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
+            'style="color:#3b82f6;text-decoration:none;margin-right:10px">↓ report</a>' +
+          '<a href="#" title="Download the runnable notebook for this investigation" ' +
+            'onclick="window._vivNotebookFromCard(event,\'' + _esc(iset.name) + '\');return false;" ' +
+            'style="color:#3b82f6;text-decoration:none">↓ notebook</a>' +
+        '</td>' +
+        '</tr>';
+    }).join('');
+    mountEl.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.9em;' +
+      'background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">' +
+      '<thead><tr>' + th + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
-  window._setStudyView = _setStudyView;
+  window._renderInvestigationTable = _renderInvestigationTable;
 
   // Client-side filter for the Investigations landing list. UNIFIED with the
   // side-rail studies search (same _tokensMatch engine, same AND-first/OR-
@@ -9817,8 +10000,8 @@
   function _filterInvestigations() {
     var input = document.getElementById('investigations-filter');
     var tokens = _tokenize(input && input.value);
-    // Studies TABLE view: filter rows directly (each carries data-row-text).
-    if (window._isetBrowseTab === 'studies' && window._isetStudyView === 'table') {
+    // TABLE zoom (either tab): filter rows directly (each carries data-row-text).
+    if (window._isetZoom === 'table') {
       document.querySelectorAll('#investigations-list tr[data-row-text]').forEach(function (tr) {
         tr.style.display = _tokensMatch(tr.getAttribute('data-row-text') || '', tokens) ? '' : 'none';
       });
@@ -10869,6 +11052,7 @@
     var _opts = window._layoutOptsForBand(aigBand);
     var shellEl = document.getElementById('investigation-dag-shell');
     if (shellEl) { shellEl.classList.remove('aig-zoom-far','aig-zoom-mid','aig-zoom-near'); shellEl.classList.add(_opts.cls); }
+
 
     var nodesHost = document.getElementById('investigation-dag-nodes');
     var edgesSvg  = document.getElementById('investigation-dag-edges');
@@ -20252,11 +20436,127 @@
   // Open a run in the Composite Explorer (in-app, left nav preserved) with its
   // saved config seeded into the Configure form so Run reproduces the run.
   function _openCompositeFromRun(row) {
-    if (!row || !row.run_id || !row.spec_id) return;
+    if (!row || !row.spec_id) return;
     window._ceIncomingOverrides = _runConfigToOverrides(row);
-    _openSimulationInExplorer(row.run_id, row.spec_id);
+    _openCompositeCardView(row.spec_id);
   }
   window._openCompositeFromRun = _openCompositeFromRun;
+
+  // Open a registered composite in the NEW full composite-card view (Modules →
+  // Composites tab, Full zoom), focused on it with its Explore/loom opened —
+  // instead of the old standalone bigraph-loom composite-explore page.
+  function _openCompositeCardView(spec_id) {
+    if (!spec_id) return;
+    if (typeof _openCompositesTab === 'function') _openCompositesTab();
+    window._registryZoom = 'full';
+    try { localStorage.setItem('viv.registryZoom', 'full'); } catch (e) { /* private mode */ }
+    if (typeof _syncRegistryToolbar === 'function') _syncRegistryToolbar();
+    var esc = (window.CSS && CSS.escape) ? CSS.escape(spec_id) : spec_id;
+    var reveal = function () {
+      if (typeof _renderRegistryComposites === 'function') _renderRegistryComposites();
+      var card = document.querySelector('.pcard-composite[data-address="' + esc + '"]');
+      if (!card) return false;
+      try { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { /* ignore */ }
+      var sec = card.querySelector('.pcard-sec-explore');
+      if (sec && !sec.classList.contains('pcard-sec-open')) {
+        var h = sec.querySelector('.pcard-sec-head'); if (h) _pcardToggleSec(h);
+      }
+      return true;
+    };
+    // Composites may not be loaded yet on a cold Modules page — load, then reveal.
+    if (window._composites && window._composites.length) {
+      setTimeout(function () { reveal(); }, 60);
+    } else if (typeof _loadComposites === 'function') {
+      _loadComposites();
+      var tries = 0;
+      var poll = setInterval(function () {
+        tries++;
+        if (reveal() || tries > 20) clearInterval(poll);
+      }, 250);
+    } else {
+      setTimeout(function () { reveal(); }, 200);
+    }
+  }
+  window._openCompositeCardView = _openCompositeCardView;
+
+  // Reveal a truncated ".sim-loc" cell's full path in place and copy it.
+  function _revealAndCopyLoc(el) {
+    if (!el) return;
+    var full = el.getAttribute('data-loc') || el.textContent || '';
+    if (!full) return;
+    el.textContent = full;
+    el.style.whiteSpace = 'normal';
+    el.style.wordBreak = 'break-all';
+    el.style.overflow = 'visible';
+    el.style.textOverflow = 'clip';
+    el.title = full;
+    var done = function (ok) {
+      var badge = document.createElement('span');
+      badge.textContent = ok ? '  ✓ copied' : '  (copy failed)';
+      badge.style.cssText = 'color:' + (ok ? '#16a34a' : '#b91c1c') + ';font-size:10px;white-space:nowrap';
+      el.appendChild(badge);
+      setTimeout(function () { if (badge.parentNode) badge.parentNode.removeChild(badge); }, 1800);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(full).then(function () { done(true); }, function () { done(false); });
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = full; document.body.appendChild(ta); ta.select();
+        var ok = false; try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+        document.body.removeChild(ta); done(ok);
+      }
+    } catch (e3) { done(false); }
+  }
+  window._revealAndCopyLoc = _revealAndCopyLoc;
+
+  // Popover showing a run's FULL config as formatted JSON, with a Copy button.
+  // Anchored to the clicked ".sim-config" cell; dismissed on outside-click/Esc.
+  function _showConfigPopover(el) {
+    var existing = document.getElementById('sim-config-popover');
+    if (existing) existing.remove();
+    var json = el.getAttribute('data-config') || '{}';
+    var pop = document.createElement('div');
+    pop.id = 'sim-config-popover';
+    pop.style.cssText = 'position:fixed;z-index:3000;min-width:300px;max-width:min(560px,92vw);' +
+      'background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 10px 34px rgba(15,23,42,.20);padding:10px 12px';
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:6px';
+    head.innerHTML = '<strong style="font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:#334155;flex:1">Run config</strong>';
+    var copyBtn = document.createElement('button');
+    copyBtn.type = 'button'; copyBtn.className = 'btn-mini'; copyBtn.textContent = '⧉ Copy JSON';
+    copyBtn.onclick = function (ev) {
+      ev.stopPropagation();
+      var orig = copyBtn.textContent;
+      var ok = function (good) { copyBtn.textContent = good ? '✓ Copied' : '✗ Failed'; setTimeout(function () { copyBtn.textContent = orig; }, 1400); };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(json).then(function () { ok(true); }, function () { ok(false); });
+        else { var ta = document.createElement('textarea'); ta.value = json; document.body.appendChild(ta); ta.select(); var g = false; try { g = document.execCommand('copy'); } catch (e) { g = false; } document.body.removeChild(ta); ok(g); }
+      } catch (e) { ok(false); }
+    };
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button'; closeBtn.className = 'btn-mini'; closeBtn.textContent = '✕';
+    closeBtn.title = 'Close'; closeBtn.onclick = function (ev) { ev.stopPropagation(); pop.remove(); };
+    head.appendChild(copyBtn); head.appendChild(closeBtn);
+    var pre = document.createElement('pre');
+    pre.textContent = json;
+    pre.style.cssText = 'margin:0;font-size:11.5px;line-height:1.45;color:#1f2937;white-space:pre;' +
+      'max-height:min(60vh,420px);overflow:auto;background:#f8fafc;border:1px solid #eef2f7;border-radius:7px;padding:8px 10px';
+    pop.appendChild(head); pop.appendChild(pre);
+    document.body.appendChild(pop);
+    // Position below the cell, clamped to the viewport.
+    var r = el.getBoundingClientRect();
+    var w = pop.offsetWidth, h = pop.offsetHeight;
+    var left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+    var top = (r.bottom + 6 + h > window.innerHeight) ? Math.max(8, r.top - h - 6) : r.bottom + 6;
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    // Dismiss on outside click / Esc.
+    var onDoc = function (ev) { if (!pop.contains(ev.target) && ev.target !== el) { cleanup(); } };
+    var onKey = function (ev) { if (ev.key === 'Escape') cleanup(); };
+    function cleanup() { pop.remove(); document.removeEventListener('mousedown', onDoc, true); document.removeEventListener('keydown', onKey, true); }
+    setTimeout(function () { document.addEventListener('mousedown', onDoc, true); document.addEventListener('keydown', onKey, true); }, 0);
+  }
+  window._showConfigPopover = _showConfigPopover;
 
   function _renderSimRow(row) { return window.SimTable.renderRow(row, { scope: 'full' }); }
 
@@ -20364,6 +20664,22 @@
     if (tbody && !tbody._simClickWired) {
       tbody._simClickWired = true;
       tbody.addEventListener('click', function (e) {
+        // Composite link → the NEW full composite-card view (not the old
+        // bigraph-loom composite-explore page).
+        var clink = e.target.closest('.sim-composite-link');
+        if (clink) {
+          e.stopPropagation();
+          var crid = clink.getAttribute('data-run-id');
+          var crow = (window._simRows || []).filter(function (r) { return String(r.run_id) === crid; })[0];
+          if (crow && window._openCompositeFromRun) window._openCompositeFromRun(crow);
+          return;
+        }
+        // Location → reveal the full path (wrap) and copy it to the clipboard.
+        var loc = e.target.closest('.sim-loc');
+        if (loc) { e.stopPropagation(); _revealAndCopyLoc(loc); return; }
+        // Config → popover with the full config JSON + Copy JSON.
+        var cfg = e.target.closest('.sim-config');
+        if (cfg) { e.stopPropagation(); _showConfigPopover(cfg); return; }
         if (e.target.closest('a, button, .action-btn')) return;
         var tr = e.target.closest('tr[data-run-id]');
         if (!tr) return;

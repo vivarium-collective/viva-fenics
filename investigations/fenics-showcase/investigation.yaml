@@ -18,24 +18,35 @@ hypothesis: |
   sharing bigraph stores, with neither process aware of the other.
 
 description: |
-  Four studies build up from validation to composition. `poisson-validation`
-  and `mesh-convergence` establish that the dolfinx bridge reproduces
-  textbook FEM numerics (manufactured-solution correctness, O(h^2) P1
-  convergence). `transient-diffusion` extends the bridge to time-stepped
-  Processes and checks mass conservation under backward-Euler integration.
-  `reaction-diffusion` is the headline: it wires `DiffusionProcess` and
-  `LogisticReactionProcess` into the same `stores.solution` / `stores.source`
-  paths and shows Fisher-KPP-like mass growth emerges from that wiring alone
-  -- the composability property the whole investigation exists to
-  demonstrate. Runs are authored here (Task 7); execution recorded into
-  the workspace's `.pbg/runs.jsonl` run log plus behavior-test evaluation
-  happens in Task 8.
+  Seven studies build up from validation to composition to advanced,
+  showcase-tier physics. `poisson-validation` and `mesh-convergence`
+  establish that the dolfinx bridge reproduces textbook FEM numerics
+  (manufactured-solution correctness, O(h^2) P1 convergence).
+  `transient-diffusion` extends the bridge to time-stepped Processes and
+  checks mass conservation under backward-Euler integration.
+  `reaction-diffusion` is the coupling headline: it wires `DiffusionProcess`
+  and `LogisticReactionProcess` into the same `stores.solution` /
+  `stores.source` paths and shows Fisher-KPP-like mass growth emerges from
+  that wiring alone -- the composability property the core of the
+  investigation exists to demonstrate. Three ADVANCED studies extend the
+  showcase beyond scalar diffusion/reaction: `navier-stokes` is the first
+  fluid-dynamics demo (lid-driven cavity, IPCS operator splitting, coupled
+  P2/P1 velocity-pressure spaces); `moving-boundary` is the first
+  deforming-domain demo (prescribed-ALE mesh motion re-solved every
+  substep); `complex-geometry` is the first non-rectangular-domain demo
+  (gmsh-constructed obstacle/L-shape/annulus topologies imported into
+  dolfinx). Runs are authored here (Task 7, extended Task 12); execution
+  recorded into the workspace's `.pbg/runs.jsonl` run log plus behavior-test
+  evaluation happens in Task 8.
 
 studies:
 - poisson-validation
 - mesh-convergence
 - transient-diffusion
 - reaction-diffusion
+- navier-stokes
+- moving-boundary
+- complex-geometry
 
 executive:
   what_is_this: |
@@ -45,23 +56,35 @@ executive:
     Two validation studies (`poisson-validation`, `mesh-convergence`) confirm
     numerical fidelity against known analytic/theoretical results; two
     dynamics studies (`transient-diffusion`, `reaction-diffusion`) extend the
-    bridge to time-stepping and cross-process coupling.
+    bridge to time-stepping and cross-process coupling. Three ADVANCED
+    studies (`navier-stokes`, `moving-boundary`, `complex-geometry`) push
+    the same bridge into fluid dynamics, deforming domains, and
+    gmsh-generated non-rectangular geometry.
   verdict: |
-    Authored and lint-clean: 4 studies, each with a real `@composite_generator`
+    Authored and lint-clean: 7 studies, each with a real `@composite_generator`
     baseline, a `sims/run.py` canonical runner, and an interactive viz.
-    Standalone execution of every runner (this task) reproduces the expected
-    numerics: l2_error ~2.8e-13 (poisson-validation, tol 1e-10), observed
-    convergence rate ~2.00 (mesh-convergence, P1 -> O(h^2)), mass conserved
-    with a decaying peak (transient-diffusion), and reaction-driven mass
-    growth ~2.6e9x the near-zero-reaction control while the field stays
-    bounded near K=1.0 (reaction-diffusion).
+    Standalone execution of every runner reproduces the expected numerics:
+    l2_error ~2.8e-13 (poisson-validation, tol 1e-10), observed convergence
+    rate ~2.00 (mesh-convergence, P1 -> O(h^2)), mass conserved with a
+    decaying peak (transient-diffusion), reaction-driven mass growth
+    ~2.6e9x the near-zero-reaction control while the field stays bounded
+    near K=1.0 (reaction-diffusion), a quasi-steady, approximately
+    divergence-free lid-driven cavity flow stable across Re=100..1000
+    (navier-stokes), a deforming-mesh diffusion solve whose boundary tracks
+    the prescribed law to near machine precision with a domain measure that
+    scales with amplitude (moving-boundary), and finite, bounded,
+    non-trivial Poisson solutions on three gmsh-generated topologies
+    (complex-geometry).
   verdict_status: in-progress
   verdict_detail: |
-    Task 7 scope: author the investigation + 4 studies + runners and get them
-    lint-clean and individually executable (done -- see each study's printed
-    PASS/FAIL line above). Task 8 scope (not yet done): drive these same
-    runners through `/viva-study run-script` so results land in the
-    workspace's `.pbg/runs.jsonl` run log and the dashboard's Tests tab
+    Task 7 scope: author the investigation + 4 core studies + runners and
+    get them lint-clean and individually executable (done). Tasks 9-11
+    scope: author the 3 advanced studies (navier-stokes, moving-boundary,
+    complex-geometry) with the same rigor (done). Task 12 scope (this task):
+    bind all 7 studies into this investigation's `studies:` list and extend
+    `acceptance_criteria` accordingly (done). Task 8 scope (not yet done):
+    drive these runners through `/viva-study run-script` so results land in
+    the workspace's `.pbg/runs.jsonl` run log and the dashboard's Tests tab
     reflects the behavior tests declared below.
   decisions_needed: []
 
@@ -72,7 +95,13 @@ scientific_argument:
     O(h^2) P1 convergence, mass-conserving transient diffusion) and, when two
     independently-authored processes are wired to the same bigraph stores,
     produces genuine Fisher-KPP coupling -- without either process containing
-    any knowledge of the other.
+    any knowledge of the other. The showcase now spans validation ->
+    coupling -> fluid dynamics -> moving boundaries -> complex geometry:
+    the same bridge that passes MMS/convergence checks and demonstrates
+    store-wiring composability also drives a real incompressible
+    Navier-Stokes solve, a prescribed-ALE deforming-mesh diffusion solve,
+    and Poisson solves on gmsh-generated non-rectangular topologies --
+    without departing from the bridge validated in the first four studies.
   evidence_for:
   - "poisson-validation: l2_error ~2.8e-13 against a quadratic manufactured
     solution with degree-2 Lagrange elements (Galerkin-exact), well inside
@@ -88,13 +117,27 @@ scientific_argument:
     (r=1e-9, identical wiring) run for the same duration -- the growth is
     attributable to the composed reaction term, not solver noise -- while the
     field stays bounded near the logistic carrying capacity K=1.0."
+  - "navier-stokes: the lid-driven cavity reaches quasi-steady state (<5%
+    residual change in speed_integral between late checkpoints), the
+    converged velocity field is approximately divergence-free
+    (mean|div(u)| ~0.003-0.02), and the IPCS scheme stays stable (no
+    blow-up) across a Re=[100,400,1000] sweep."
+  - "moving-boundary: boundary_position tracks the prescribed oscillation
+    law to near machine precision, the FEM-assembled domain_measure's swing
+    scales with oscillation amplitude across an amplitude sweep, and the
+    diffusion field stays finite/bounded throughout on the deforming mesh."
+  - "complex-geometry: all three gmsh-generated topologies (obstacle,
+    L-shape, annulus) import with cell counts in the low thousands (well
+    above the 20-cell floor), and each Poisson solve is finite, bounded,
+    and non-trivially nonzero, matching the maximum-principle expectation."
   evidence_against:
-  - "All four studies use a single fixed random-free deterministic setup
-    (unit-square mesh, one resolution/degree/parameter point per study
-    beyond the declared sweeps); broader parameter robustness beyond the
-    resolution/rate sweeps in mesh-convergence and reaction-diffusion is
-    untested."
-  - "Behavior tests are authored (Task 7) but not yet run through the
+  - "All seven studies use a single fixed random-free deterministic setup
+    (one resolution/degree/parameter point per study beyond the declared
+    sweeps); broader parameter robustness beyond the declared sweeps
+    (resolution in mesh-convergence, rate in reaction-diffusion, Reynolds
+    in navier-stokes, amplitude/mode in moving-boundary, geometry in
+    complex-geometry) is untested."
+  - "Behavior tests are authored (Tasks 7, 9-11) but not yet run through the
     dashboard's Tests tab against the workspace's `.pbg/runs.jsonl` run log
     (Task 8), so the PASS/FAIL verdicts above come from the runner scripts'
     own printed checks, not the dashboard's evaluator."
@@ -104,6 +147,12 @@ scientific_argument:
     (DiffusionProcess / LogisticReactionProcess); it is not yet exercised
     against a third, unrelated process to further stress-test the claim that
     the wiring pattern generalizes."
+  - "The three advanced studies (navier-stokes, moving-boundary,
+    complex-geometry) each stand on their own dolfinx bridge exercise --
+    they are not yet cross-wired into a single combined composite (e.g.
+    fluid flow on a deforming, non-rectangular domain), so the showcase
+    demonstrates breadth of individual capability, not their joint
+    composition."
 
 acceptance_criteria:
 - study: poisson-validation
@@ -118,3 +167,19 @@ acceptance_criteria:
   behavior: mass-grows-via-coupling
 - study: reaction-diffusion
   behavior: field-bounded-by-k
+- study: navier-stokes
+  behavior: reaches-quasi-steady
+- study: navier-stokes
+  behavior: approximately-divergence-free
+- study: navier-stokes
+  behavior: stable-across-reynolds-sweep
+- study: moving-boundary
+  behavior: boundary-follows-prescribed-law
+- study: moving-boundary
+  behavior: domain-measure-scales-with-amplitude
+- study: moving-boundary
+  behavior: field-stays-finite
+- study: complex-geometry
+  behavior: mesh-imports-with-positive-cells
+- study: complex-geometry
+  behavior: solution-finite-bounded-nontrivial

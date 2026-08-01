@@ -115,8 +115,29 @@ def _lightweight_vortex_street_doc(core):
 
 
 def _strouhal_from_series(times, values, u_mean, diameter, min_freq=0.2):
-    """Dominant oscillation frequency (via FFT of the mean-subtracted
-    series) and the corresponding Strouhal number St = f*D/U.
+    """Dominant oscillation frequency (via a Hann-windowed FFT of the
+    mean-subtracted series, refined with 3-point parabolic interpolation
+    around the peak bin) and the corresponding Strouhal number St = f*D/U.
+
+    A plain rectangular-window FFT's peak lands on whatever bin is closest
+    to the true frequency -- for a ~1.5s analysis window that's bins
+    ~1/1.5s = ~0.667 Hz apart (a Strouhal resolution of ~0.067), so
+    reporting the raw bin frequency to 4 significant figures is misleading
+    precision. Two independent improvements, both standard spectral-
+    estimation technique, not reimplemented physics:
+
+    1. A Hann window (``np.hanning``) reduces spectral leakage from the
+       analysis window not containing an exact integer number of shedding
+       cycles, which otherwise smears/biases where the peak bin lands.
+    2. 3-point parabolic (quadratic) interpolation of the log-free
+       magnitude spectrum around the peak bin estimates the TRUE peak
+       frequency to sub-bin precision, rather than reporting whichever bin
+       happens to be nearest.
+
+    The frequency-bin spacing itself (``1/(n*dt)``) is still reported as an
+    explicit uncertainty -- interpolation improves the point estimate, it
+    does not shrink the fundamental resolution set by the analysis window's
+    duration.
 
     Args:
         times: uniformly-spaced (T,) simulated-time array.
@@ -128,20 +149,34 @@ def _strouhal_from_series(times, values, u_mean, diameter, min_freq=0.2):
             shedding frequency.
 
     Returns:
-        (f_peak, strouhal) tuple.
+        (f_peak, strouhal, strouhal_uncertainty) tuple -- the last is the
+        +/- band from the FFT's bin resolution (``df * diameter / u_mean``).
     """
     times = np.asarray(times, dtype=float)
     values = np.asarray(values, dtype=float)
     values = values - np.mean(values)
     dt_uniform = float(np.mean(np.diff(times)))
     n = len(values)
+
+    windowed = values * np.hanning(n)
     freqs = np.fft.rfftfreq(n, d=dt_uniform)
-    spectrum = np.abs(np.fft.rfft(values))
+    spectrum = np.abs(np.fft.rfft(windowed))
     spectrum[freqs < min_freq] = 0.0
     peak_idx = int(np.argmax(spectrum))
-    f_peak = float(freqs[peak_idx])
+    df = float(freqs[1] - freqs[0])
+
+    if 0 < peak_idx < len(spectrum) - 1:
+        y_m1, y_0, y_p1 = spectrum[peak_idx - 1], spectrum[peak_idx], spectrum[peak_idx + 1]
+        denom = y_m1 - 2.0 * y_0 + y_p1
+        delta = 0.5 * (y_m1 - y_p1) / denom if denom != 0 else 0.0
+        delta = float(np.clip(delta, -1.0, 1.0))
+    else:
+        delta = 0.0
+
+    f_peak = float(freqs[peak_idx] + delta * df)
     strouhal = f_peak * diameter / u_mean
-    return f_peak, strouhal
+    strouhal_uncertainty = df * diameter / u_mean
+    return f_peak, strouhal, strouhal_uncertainty
 
 
 def main() -> int:
@@ -225,7 +260,9 @@ def main() -> int:
         cd_mean = float(np.mean(drag_window))
         cd_max = float(np.max(drag_window))
 
-        f_peak, strouhal = _strouhal_from_series(times_window, lift_window, u_mean, diameter)
+        f_peak, strouhal, strouhal_uncertainty = _strouhal_from_series(
+            times_window, lift_window, u_mean, diameter
+        )
 
         lift_oscillates = cl_std > CL_STD_THRESHOLD
         drag_in_range = CD_RANGE[0] < cd_mean < CD_RANGE[1]
@@ -296,8 +333,8 @@ def main() -> int:
         f"(DFG reference Cd_max {DFG_CD_MAX_RANGE[0]}-{DFG_CD_MAX_RANGE[1]}); "
         f"Cl_max={cl_max:.4f} std(Cl)={cl_std:.4f} "
         f"(DFG reference Cl_max {DFG_CL_MAX_RANGE[0]}-{DFG_CL_MAX_RANGE[1]}); "
-        f"Strouhal={strouhal:.4f} (shedding f={f_peak:.4f} Hz) "
-        f"(DFG reference St {DFG_ST_RANGE[0]}-{DFG_ST_RANGE[1]})"
+        f"Strouhal={strouhal:.2f} +/- {strouhal_uncertainty:.2f} (bin resolution; "
+        f"shedding f={f_peak:.3f} Hz) (DFG reference St {DFG_ST_RANGE[0]}-{DFG_ST_RANGE[1]})"
     )
     print(
         f"[navier-stokes] std(Cl) over analysis window = {cl_std:.4f} "
@@ -309,8 +346,8 @@ def main() -> int:
         f"(drag-in-benchmark-range in [{CD_RANGE[0]}, {CD_RANGE[1]}])"
     )
     print(
-        f"[navier-stokes] Strouhal number = {strouhal:.4f} "
-        f"-> {'PASS' if strouhal_in_range else 'FAIL'} "
+        f"[navier-stokes] Strouhal number = {strouhal:.2f} +/- {strouhal_uncertainty:.2f} "
+        f"(bin resolution) -> {'PASS' if strouhal_in_range else 'FAIL'} "
         f"(strouhal-in-range in [{ST_RANGE[0]}, {ST_RANGE[1]}])"
     )
     print(

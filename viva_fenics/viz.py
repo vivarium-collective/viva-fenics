@@ -318,15 +318,27 @@ def field_heatmap_html(coords, values, title):
 # 2. field_animation_html
 # ---------------------------------------------------------------------------
 
-def field_animation_html(coords, frames, times, title):
-    """Plotly animation of a scalar field over time, with a slider + play/pause."""
+def field_animation_html(coords, frames, times, title, n=90):
+    """Plotly animation of a scalar field over time, with a slider + play/pause.
+
+    Viz-size budget: an animation embeds ``n*n`` JSON-encoded floats PER
+    FRAME (every frame's full interpolated grid, not just a diff), so file
+    size grows with ``n**2 * len(frames)`` -- easy to blow past several MB.
+    ``n=90`` (vs. the single-frame ``field_heatmap_html``'s ``n=140``) still
+    comfortably exceeds a typical FEM mesh's node resolution while keeping
+    per-frame payload down. Target: animated viz <=~30 frames, ``n<=~100``,
+    <=~6MB per file (a study with a longer/finer run should subsample
+    frames -- e.g. every Nth snapshot -- rather than growing ``n`` or frame
+    count unboundedly; see ``studies/navier-stokes/sims/run.py``'s
+    ``SNAPSHOT_DT`` for the frame-cadence knob).
+    """
     frames = [np.asarray(f, dtype=float) for f in frames]
     times = list(times)
 
     xi = yi = None
     zis = []
     for f in frames:
-        xi, yi, zi = _interpolate_to_grid(coords, f)
+        xi, yi, zi = _interpolate_to_grid(coords, f, n=n)
         zis.append(zi)
 
     vmin = float(np.nanmin([np.nanmin(z) for z in zis]))

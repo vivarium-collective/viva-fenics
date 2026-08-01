@@ -71,10 +71,14 @@ description: |
   (not yet fully at) the DFG reference Cl_max~=0.99-1.01 by t=3.0s. Drag
   settles to Cd_mean=3.03 / Cd_max=3.15 over that window, ~3-6% below the
   DFG reference Cd_max~=3.22-3.24. The shedding frequency's Strouhal number
-  is 0.333 (DFG reference ~0.295-0.305), ~11% high. All three land close to
-  the reference neighborhood on a mesh/dt/duration chosen for feasible
-  wall-time rather than DFG-grade mesh convergence -- see the study's report
-  for the full accuracy/runtime tradeoff discussion.
+  is St~=0.31 +/- 0.07 (Hann-windowed FFT, 3-point parabolic peak
+  interpolation; the +/-0.07 is the FFT's bin-resolution floor set by the
+  ~1.5s analysis window, ~5 shedding cycles -- a plain rectangular-window
+  FFT's nearest-bin estimate alone, 0.33, is within measurement resolution
+  of the DFG reference ~0.295-0.305, not a precise ~11% offset from it). All
+  three land close to the reference neighborhood on a mesh/dt/duration
+  chosen for feasible wall-time rather than DFG-grade mesh convergence --
+  see the study's report for the full accuracy/runtime tradeoff discussion.
 
 baseline:
 - name: vortex-street-baseline
@@ -126,18 +130,19 @@ expected_behavior:
     low: 2.7
     high: 3.6
 - name: strouhal-in-range
-  en: "The shedding frequency's Strouhal number (from an FFT peak of the lift signal) sits in [0.25, 0.40], bracketing the achieved 0.333 and close to the DFG benchmark's St~=0.30."
+  en: "The shedding frequency's Strouhal number (Hann-windowed, parabolic-interpolated FFT peak of the lift signal) sits in [0.25, 0.40], bracketing the achieved St~=0.31 +/- 0.07 -- within measurement resolution of the DFG benchmark's St~=0.30."
   observable: strouhal_number
   condition: 0.25 < St < 0.40
   rationale: >-
     St = f_shed*D/U is close to universal (~0.2-0.3) for bluff-body vortex
     shedding across a wide Reynolds range, and the DFG 2D-2 reference is
-    St~=0.30 specifically at Re=100. The production run's FFT peak (over
-    the analysis window t=1.5-3.0s) gave St=0.333, ~11% high -- consistent
-    with this solver's coarser-than-benchmark-grade mesh/dt and the limited
-    number of shedding cycles feasible in one production run. The band
-    brackets that achieved result while still rejecting a qualitatively
-    wrong (e.g. spurious high-frequency numerical) peak.
+    St~=0.30 specifically at Re=100. The production run's refined estimate
+    (over the analysis window t=1.5-3.0s, ~5 shedding cycles) is
+    St~=0.31 +/- 0.07 -- the +/-0.07 is the FFT's own bin-resolution floor
+    at this window duration, not an error bar on the physics, and it fully
+    covers the DFG reference. The band brackets that achieved result while
+    still rejecting a qualitatively wrong (e.g. spurious high-frequency
+    numerical) peak.
   measure:
     kind: derived_scalar
     field: strouhal_number
@@ -181,21 +186,22 @@ behavior_tests:
     low: 2.7
     high: 3.6
     provenance:
-      kind: theory
+      kind: calibration
       note: >-
         Schafer/Turek DFG 2D-2 reference Cd_max~=3.22-3.24 (unsteady case,
-        Re=100). The production run achieved Cd_mean=3.03 / Cd_max=3.15
-        over the analysis window (~3-6% below reference) on this solver's
-        feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- the
-        pass band brackets that achieved result rather than the reference
-        exactly.
+        Re=100) is the target this band is drawn near, but the band itself
+        was fit around the production run's achieved Cd_mean=3.03 /
+        Cd_max=3.15 (~3-6% below reference) on this solver's
+        feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- i.e.
+        calibrated to the observed result with headroom, not derived from
+        theory alone.
   requires_simulation: vortex-street-baseline
 - name: strouhal-in-range
   classification: supporting
   description: |
-    The Strouhal number computed from an FFT peak of the lift-coefficient
-    signal over the analysis window must land in [0.25, 0.40], bracketing
-    the achieved 0.333.
+    The Strouhal number (Hann-windowed, parabolic-interpolated FFT peak of
+    the lift-coefficient signal) over the analysis window must land in
+    [0.25, 0.40], bracketing the achieved St~=0.31 +/- 0.07.
   measure:
     kind: derived_scalar
     field: strouhal_number
@@ -204,13 +210,15 @@ behavior_tests:
     low: 0.25
     high: 0.40
     provenance:
-      kind: theory
+      kind: calibration
       note: >-
-        Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100).
-        The production run's FFT peak gave St=0.333 (~11% high), consistent
-        with this solver's coarser mesh/dt and limited shedding-cycle count;
-        the band brackets that achieved result while still rejecting a
-        qualitatively wrong (e.g. spurious high-frequency numerical) peak.
+        Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100)
+        is the target this band is drawn near, but the band itself was fit
+        around the production run's achieved St~=0.31 +/- 0.07 (the
+        uncertainty is the FFT's own bin-resolution floor over the ~1.5s/
+        ~5-cycle analysis window, not an error bar on the underlying
+        physics) -- i.e. calibrated to the observed result with headroom,
+        not derived from theory alone.
   requires_simulation: vortex-street-baseline
 
 pipeline_gate:

@@ -9,6 +9,11 @@ module nor ``diffusion.py`` has any knowledge of the other.
 kinetics that, coupled to TWO ``DiffusionProcess`` instances (one per
 species), produce a genuine Turing instability (see
 ``viva_fenics.composites.turing_patterns`` for its 3-process coupling).
+``LinearDegradationProcess`` implements the first-order decay term ``-k*c``
+of the Source-Diffusion-Degradation (SDD) morphogen-gradient model, coupled
+to a single ``DiffusionProcess`` (with a Dirichlet source boundary) to
+produce a genuine exponential gradient (see
+``viva_fenics.composites.morphogen_gradient``).
 """
 
 from __future__ import annotations
@@ -130,3 +135,49 @@ class GrayScottReactionProcess(Process):
         source_u = -uvv + F * (1.0 - u)
         source_v = uvv - (F + k) * v
         return {"source_u": source_u, "source_v": source_v}
+
+
+class LinearDegradationProcess(Process):
+    """First-order degradation term for the Source-Diffusion-Degradation
+    (SDD) morphogen-gradient model: ``source = -k*c``.
+
+    Coupled to ``DiffusionProcess`` (with a Dirichlet source boundary c=c0
+    at x=0, see ``DiffusionProcess``'s ``apply_boundary``/``boundary_value``
+    config) purely through shared bigraph stores -- this process has NO
+    knowledge of FEM, of DiffusionProcess, or of the boundary condition. The
+    steady state of the composed system (``0 = D*laplacian(c) - k*c``, with
+    c(0)=c0) is the classic exponential morphogen gradient
+    ``c(x) = c0*exp(-x/lambda)``, decay length ``lambda = sqrt(D/k)`` -- see
+    ``viva_fenics.composites.morphogen_gradient`` for the composition.
+
+    Inputs
+    ------
+    solution : array[float]
+        Current absolute nodal field (the same store ``DiffusionProcess``
+        reads/writes as its own "solution").
+
+    Outputs
+    -------
+    source : overwrite[array[float]]
+        The instantaneous degradation RATE field for this tick (always
+        <= 0 for c >= 0). ``overwrite`` (replace), not additive -- same
+        rationale as ``LogisticReactionProcess.outputs``'s "source":
+        ``DiffusionProcess`` multiplies "source" by dt internally, so this
+        process must not also scale by ``interval``, and the store must be
+        REPLACED each tick (a fresh rate reading), not accumulated.
+    """
+
+    config_schema = {
+        "k": {"_type": "float", "_default": 1.0},
+    }
+
+    def inputs(self):
+        return {"solution": "array[float]"}
+
+    def outputs(self):
+        return {"source": "overwrite[array[float]]"}
+
+    def update(self, state, interval):
+        c = np.asarray(state["solution"], dtype=float)
+        k = self.config["k"]
+        return {"source": -k * c}

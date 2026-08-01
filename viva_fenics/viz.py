@@ -861,6 +861,212 @@ def coefficient_timeseries_html(times, series, title, y_label="value"):
 
 
 # ---------------------------------------------------------------------------
+# 3c. profile_with_fit_html
+# ---------------------------------------------------------------------------
+
+def profile_with_fit_html(
+    x, measured, fit, title, x_label="x", y_label="value",
+    measured_label="measured", fit_label="analytic fit", log_y=False, annotation=None,
+):
+    """1D profile chart: a measured curve (e.g. a steady-state morphogen
+    gradient c(x), averaged/collapsed along any symmetric axis) overlaid
+    with an analytic/theoretical curve (e.g. c0*exp(-x/lambda)) -- the
+    single-line analogue of ``convergence_loglog_html``'s
+    observed-vs-fit pairing, for profiles indexed by a spatial coordinate
+    rather than mesh size.
+
+    Args:
+        x: (N,) sequence of x-coordinates (shared by both curves).
+        measured: (N,) measured/simulated values.
+        fit: (N,) analytic/theoretical values at the same `x`.
+        title: card title.
+        x_label, y_label: axis titles.
+        measured_label, fit_label: legend labels for the two series.
+        log_y: if True, use a log y-axis -- an exponential decay renders as
+            a straight line, making deviations from pure exponential decay
+            directly visible.
+        annotation: optional preformatted string (e.g. "fitted lambda=0.32
+            vs analytic 0.316") placed in the bottom-right corner.
+    """
+    x = np.asarray(x, dtype=float)
+    measured = np.asarray(measured, dtype=float)
+    fit = np.asarray(fit, dtype=float)
+    order = np.argsort(x)
+    x_s, m_s, f_s = x[order], measured[order], fit[order]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x_s, y=m_s, mode="markers+lines", name=measured_label,
+            meta="series-1",
+            line=dict(color=SERIES[0], width=2),
+            marker=dict(size=6, color=SERIES[0], line=dict(width=1, color="#fcfcfb")),
+            hovertemplate=f"{x_label}=%{{x:.4g}}<br>{measured_label}=%{{y:.4g}}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x_s, y=f_s, mode="lines", name=fit_label,
+            meta="series-2",
+            line=dict(color=SERIES[1], width=2, dash="dash"),
+            hovertemplate=f"{x_label}=%{{x:.4g}}<br>{fit_label}=%{{y:.4g}}<extra></extra>",
+        )
+    )
+    if annotation:
+        fig.add_annotation(
+            xref="paper", yref="paper", x=0.98, y=0.94, xanchor="right", yanchor="top",
+            showarrow=False, text=annotation,
+            font=dict(size=13, color="#52514e"), bgcolor="rgba(0,0,0,0)", align="right",
+        )
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(title=dict(text=x_label, font=dict(color="#52514e"))),
+        yaxis=dict(
+            title=dict(text=y_label, font=dict(color="#52514e")),
+            type="log" if log_y else "linear",
+        ),
+        legend=dict(font=dict(color="#52514e")),
+        margin=dict(l=70, r=30, t=50, b=50),
+    )
+    return _finish(fig, height=440)
+
+
+# ---------------------------------------------------------------------------
+# 3c-2. profile_compare_html
+# ---------------------------------------------------------------------------
+
+def profile_compare_html(series, title, x_label="x", y_label="value", log_y=False):
+    """Multi-regime extension of ``profile_with_fit_html``: overlays SEVERAL
+    (measured, analytic-fit) curve pairs -- e.g. a morphogen gradient at
+    several decay lengths lambda -- each pair sharing one categorical color,
+    solid for measured / dashed for the analytic curve (mirrors
+    ``convergence_loglog_compare_html``'s observed/fit pairing per series).
+
+    Args:
+        series: dict of {label: (x, measured, fit)} -- each value a triple
+            of equal-length 1D sequences, plotted in insertion order and
+            colored by the dataviz categorical palette (``SERIES``).
+        title: card title.
+        x_label, y_label: axis titles.
+        log_y: if True, use a log y-axis.
+    """
+    fig = go.Figure()
+    for i, (label, (x_vals, measured, fit)) in enumerate(series.items()):
+        x_vals = np.asarray(x_vals, dtype=float)
+        measured = np.asarray(measured, dtype=float)
+        fit = np.asarray(fit, dtype=float)
+        order = np.argsort(x_vals)
+        x_s, m_s, f_s = x_vals[order], measured[order], fit[order]
+
+        color = SERIES[i % len(SERIES)]
+        fig.add_trace(
+            go.Scatter(
+                x=x_s, y=m_s, mode="markers+lines", name=f"{label} (measured)",
+                meta=f"series-{i + 1}",
+                line=dict(color=color, width=2),
+                marker=dict(size=5, color=color, line=dict(width=1, color="#fcfcfb")),
+                hovertemplate=f"{label}<br>{x_label}=%{{x:.4g}}<br>{y_label}=%{{y:.4g}}<extra></extra>",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=x_s, y=f_s, mode="lines", name=f"{label} (analytic)",
+                meta=f"series-{i + 1}",
+                line=dict(color=color, width=1.5, dash="dash"),
+                hoverinfo="skip",
+            )
+        )
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(title=dict(text=x_label, font=dict(color="#52514e"))),
+        yaxis=dict(
+            title=dict(text=y_label, font=dict(color="#52514e")),
+            type="log" if log_y else "linear",
+        ),
+        legend=dict(font=dict(color="#52514e")),
+        margin=dict(l=70, r=30, t=50, b=50),
+    )
+    return _finish(fig, height=460)
+
+
+# ---------------------------------------------------------------------------
+# 3d. french_flag_regions_html
+# ---------------------------------------------------------------------------
+
+def french_flag_regions_html(coords, values, thresholds, region_labels, title, boundary_x=None):
+    """Positional-information readout: partitions a scalar field into
+    ``len(thresholds) + 1`` fate regions via `thresholds` (descending),
+    rendered as a discrete filled heatmap over the domain -- a literal nod
+    to Wolpert's original "French flag" terminology (blue/white/red bands),
+    used ONLY for this readout; every other function in this module follows
+    the dataviz sequential/categorical palette.
+
+    Args:
+        coords: (N, 2) mesh dof coordinates.
+        values: (N,) nodal field values (e.g. steady-state morphogen
+            concentration).
+        thresholds: sequence of threshold values, HIGH to LOW (e.g.
+            (theta_high, theta_low)) -- defines 3 regions for 2 thresholds.
+        region_labels: sequence of region names, same order as the regions
+            they define (highest-value region first), length
+            ``len(thresholds) + 1``.
+        title: card title.
+        boundary_x: optional sequence of x-positions to mark with dashed
+            vertical reference lines (e.g. the ANALYTIC theta-crossing
+            positions, for visual comparison against the rendered region
+            edges).
+    """
+    coords = np.asarray(coords, dtype=float)
+    values = np.asarray(values, dtype=float)
+    thresholds_desc = sorted(thresholds, reverse=True)
+    n_regions = len(thresholds_desc) + 1
+    if len(region_labels) != n_regions:
+        raise ValueError(f"expected {n_regions} region_labels, got {len(region_labels)}")
+
+    xi, yi, zi = _interpolate_to_grid(coords, values, n=140)
+    region = np.zeros_like(zi)
+    for t in thresholds_desc:
+        region += (zi < t).astype(float)  # 0 = highest-value region, ..., n_regions-1 = lowest
+
+    default_colors = ["#1c5cab", "#f4f2e9", "#c0392b"]  # Wolpert's blue / white / red
+    colors = (default_colors + default_colors)[:n_regions] if n_regions <= 3 else [
+        SERIES[i % len(SERIES)] for i in range(n_regions)
+    ]
+    colorscale = []
+    for i, c in enumerate(colors):
+        colorscale.append([i / n_regions, c])
+        colorscale.append([(i + 1) / n_regions, c])
+
+    fig = go.Figure(
+        data=go.Heatmap(
+            x=xi, y=yi, z=region, zmin=0, zmax=n_regions,
+            colorscale=colorscale, showscale=False,
+            connectgaps=False,
+            hovertemplate="x=%{x:.3f}<br>y=%{y:.3f}<br>region=%{z}<extra></extra>",
+        )
+    )
+    for x0 in (boundary_x or []):
+        fig.add_shape(
+            type="line", x0=x0, x1=x0, y0=0, y1=1, yref="paper",
+            line=dict(color="#0b0b0b", width=1.5, dash="dot"), opacity=0.6,
+        )
+    for i, label in enumerate(region_labels):
+        mask = region == i
+        x_center = float(xi[mask.any(axis=0)].mean()) if mask.any() else float(xi[len(xi) // (2 * n_regions)])
+        fig.add_annotation(
+            x=x_center, y=1.04, xref="x", yref="paper", showarrow=False,
+            text=label, font=dict(size=13, color="#0b0b0b"),
+        )
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(title=dict(text="x", font=dict(color="#52514e")), scaleanchor="y", constrain="domain"),
+        yaxis=dict(title=dict(text="y", font=dict(color="#52514e"))),
+        margin=dict(l=60, r=30, t=60, b=50),
+    )
+    return _finish(fig, height=420)
+
+
+# ---------------------------------------------------------------------------
 # 4. quiver_streamlines_html
 # ---------------------------------------------------------------------------
 

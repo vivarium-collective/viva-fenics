@@ -51,6 +51,16 @@ class DiffusionProcess(Process):
     integral : float
         FEM integral of the new (absolute) field, for mass-conservation
         bookkeeping.
+
+    Config
+    ------
+    apply_boundary / boundary_value : bool / float
+        Optional real Dirichlet BC pinning the x=0 face to `boundary_value`
+        every step (e.g. a morphogen source boundary c=c0) -- see
+        `viva_fenics.composites.morphogen_gradient`. Off by default
+        (`apply_boundary=False`), so this is a strict opt-in extension: every
+        pre-existing composite that doesn't set it gets exactly the original
+        all-Neumann behavior.
     """
 
     config_schema = {
@@ -59,6 +69,14 @@ class DiffusionProcess(Process):
         "D": {"_type": "float", "_default": 0.1},
         "dt": {"_type": "float", "_default": 0.01},
         "initial": {"_type": "string", "_default": "gaussian"},
+        # A morphogen-gradient-style source boundary: when `apply_boundary`
+        # is True, the x=0 face is pinned to a real Dirichlet BC at
+        # `boundary_value` (e.g. c=c0) every step, via fem.diffusion_step's
+        # `bc_value`; every other face stays natural Neumann (zero-flux).
+        # Off by default so every existing composite (transient_diffusion,
+        # reaction_diffusion, turing_patterns) is bit-for-bit unaffected.
+        "apply_boundary": {"_type": "boolean", "_default": False},
+        "boundary_value": {"_type": "float", "_default": 0.0},
     }
 
     def __init__(self, config=None, core=None):
@@ -94,6 +112,8 @@ class DiffusionProcess(Process):
         coords = fem.node_coords(self._V)
         if self.config["initial"] == "gaussian":
             bump = _gaussian_bump(coords)
+        elif self.config["initial"] == "zero":
+            bump = np.zeros(coords.shape[0])
         else:
             raise ValueError(f"Unsupported initial condition: {self.config['initial']!r}")
         self._u_n = bump.copy()
@@ -118,9 +138,13 @@ class DiffusionProcess(Process):
         n_steps = max(1, round(interval / dt))
         step_dt = interval / n_steps
 
+        bc_value = self.config["boundary_value"] if self.config["apply_boundary"] else None
+
         u = prev.copy()
         for _ in range(n_steps):
-            u = fem.diffusion_step(self._domain, self._V, u, source, step_dt, self.config["D"])
+            u = fem.diffusion_step(
+                self._domain, self._V, u, source, step_dt, self.config["D"], bc_value=bc_value,
+            )
 
         self._u_n = u.copy()
         integral = fem.field_integral(self._domain, self._V, u)

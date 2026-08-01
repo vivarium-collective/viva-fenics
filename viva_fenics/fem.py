@@ -91,7 +91,7 @@ def solve_poisson(domain, V, source_fn, bc_fn):
     return uh.x.array.copy()
 
 
-def diffusion_step(domain, V, u_n_array, source_array, dt, D):
+def diffusion_step(domain, V, u_n_array, source_array, dt, D, bc_value=None):
     """Advance one backward-Euler step of the transient diffusion equation.
 
     Solves for u given the previous nodal field u_n and an additive nodal
@@ -99,8 +99,8 @@ def diffusion_step(domain, V, u_n_array, source_array, dt, D):
 
         (u*v + dt*D*dot(grad(u), grad(v))) dx = (u_n + dt*source) * v dx
 
-    No Dirichlet boundary condition is applied, so the boundary is natural
-    Neumann (zero-flux) -- mass is conserved up to the source term.
+    By default no Dirichlet boundary condition is applied, so the boundary is
+    natural Neumann (zero-flux) -- mass is conserved up to the source term.
 
     Args:
         domain: dolfinx mesh.
@@ -109,6 +109,11 @@ def diffusion_step(domain, V, u_n_array, source_array, dt, D):
         source_array: nodal values of the additive source over the step.
         dt: step size.
         D: diffusion coefficient.
+        bc_value: if given, pins the field to this constant value on the
+            ``x=0`` face of the domain via a real Dirichlet BC (e.g. a
+            morphogen production boundary c=c0), leaving every other face
+            natural Neumann (zero-flux). ``None`` (the default) preserves
+            the original all-Neumann behavior exactly.
 
     Returns:
         np.ndarray of nodal solution values after the step (uh.x.array copy).
@@ -124,9 +129,21 @@ def diffusion_step(domain, V, u_n_array, source_array, dt, D):
     a = (u * v + dt * D * ufl.dot(ufl.grad(u), ufl.grad(v))) * ufl.dx
     L = (u_n + dt * source) * v * ufl.dx
 
+    bcs = []
+    if bc_value is not None:
+        tdim = domain.topology.dim
+        domain.topology.create_connectivity(tdim - 1, tdim)
+        boundary_facets = mesh.locate_entities_boundary(
+            domain, tdim - 1, lambda x: np.isclose(x[0], 0.0)
+        )
+        dofs = fem.locate_dofs_topological(V, tdim - 1, boundary_facets)
+        bc_fn = fem.Function(V)
+        bc_fn.x.array[:] = bc_value
+        bcs = [fem.dirichletbc(bc_fn, dofs)]
+
     prefix = f"viva_fenics_diff_{next(_prefix_counter)}_"
     problem = LinearProblem(
-        a, L, bcs=[],
+        a, L, bcs=bcs,
         petsc_options_prefix=prefix,
         petsc_options={"ksp_type": "preonly", "pc_type": "lu"},
     )

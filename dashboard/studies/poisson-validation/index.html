@@ -14,7 +14,7 @@
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    <span class="study-name" id="study-name" data-slug="poisson-validation" title="poisson-validation">Poisson validation: MMS correctness</span>
+    <span class="study-name" id="study-name" data-slug="poisson-validation" title="poisson-validation">High-order accuracy verification: P1/P2/P3 optimal L2 convergence</span>
     
     <span class="phase-pill phase-build" title="Lifecycle: Design → Build → Simulate → Evaluate → Decide">Build</span>
     
@@ -221,19 +221,31 @@
     
     <div class="overview-section">
       <div id="question-text" class="overview-prose" data-editable="true" data-field="question"
-           data-placeholder="+ Add the research question this study asks">Does the dolfinx-backed `PoissonSolverStep` reproduce the exact solution of
-a manufactured steady Poisson problem to numerical precision?
+           data-placeholder="+ Add the research question this study asks">Do P1, P2, and P3 Lagrange elements each achieve their OWN theoretically
+optimal L2 convergence rate (degree+1: 2, 3, 4 respectively) when solving
+the dolfinx-backed `PoissonSolverStep` on a smooth (C-infinity)
+manufactured solution, or does any element order under- or over-perform
+its textbook rate?
 </div>
       <div id="hypothesis-text" class="overview-prose" data-editable="true" data-field="hypothesis"
-           data-placeholder="(predicted outcome)">Degree-2 Lagrange elements exactly represent the quadratic manufactured
-solution used here (Galerkin orthogonality), so the L2 error against the
-analytic solution should sit at floating-point round-off, not merely
-&#34;small&#34;.
+           data-placeholder="(predicted outcome)">u_exact = sin(pi*x)*sin(pi*y) is smooth but NOT polynomial, so unlike a
+quadratic manufactured solution (exactly representable by degree&gt;=2
+elements, collapsing their error to round-off) no fixed-degree Lagrange
+space represents it exactly. Standard a priori FEM theory predicts every
+degree-p Lagrange element converges in L2 at rate p+1 on a sufficiently
+smooth problem: P1 -&gt; O(h^2), P2 -&gt; O(h^3), P3 -&gt; O(h^4). A genuine
+dolfinx solve, with the L2 error measured against the true symbolic exact
+solution at elevated quadrature (not an FE interpolant of it, which would
+understate exactly the higher-order error this check needs to see),
+should reproduce all three optimal rates cleanly.
 </div>
-      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Solve the steady Poisson equation -div(grad(u)) = f on the unit square with
-a manufactured (known-exact) quadratic solution, and verify the FEM
-solution matches the exact solution to within numerical tolerance. This is
-the correctness baseline every other study in the investigation builds on.
+      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">For degree in {1, 2, 3} and a resolution sweep (mesh cells per side: 8,
+16, 32, 64), solve -div(grad(u)) = f on the unit square with f and the
+Dirichlet BC derived from u_exact = sin(pi*x)*sin(pi*y), compute each
+point&#39;s L2 error against the true exact solution, and fit the log-log
+convergence rate (slope of log error vs log h) per degree. Confirm P1&#39;s
+rate lands near 2.0, P2&#39;s near 3.0, and P3&#39;s near 4.0 -- a rigorous
+multi-order verification, not a single &#34;error is small&#34; checkbox.
 </div>
     </div>
     
@@ -371,10 +383,11 @@ the correctness baseline every other study in the investigation builds on.
         </div>
         
         
-        <div><strong>Proceed when:</strong> <span class="muted">The MMS L2 error is within tolerance (l2-error-within-tolerance passes),
-confirming the dolfinx bridge is numerically correct before building
-the convergence sweep and the time-stepped diffusion studies on top of
-it.
+        <div><strong>Proceed when:</strong> <span class="muted">All three element orders (P1/P2/P3) achieve their theoretically optimal
+L2 convergence rate within tolerance, confirming the dolfinx bridge is
+not just correct at one order (the original quadratic-MMS check) but
+genuinely high-order-accurate across P1-P3, before building the
+convergence sweep and time-stepped diffusion studies on top of it.
 </span></div>
         
       </div>
@@ -392,8 +405,8 @@ it.
         
         
         <p style="margin:0">
-          <strong>1</strong> tests defined —
-            <span class="classification-pill classification-primary">1 primary</span>
+          <strong>3</strong> tests defined —
+            <span class="classification-pill classification-primary">3 primary</span>
           <a onclick="_setStudyTab('tests')" style="cursor:pointer;color:#3b82f6;text-decoration:underline;margin-left:6px">View on Tests tab →</a>
         </p>
       </div>
@@ -460,24 +473,24 @@ it.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.poisson.poisson_baseline" data-model-overrides='{"degree": 2, "resolution": 32}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.poisson.high_order_verification" data-model-overrides='{"degree": 2, "resolution": 32}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong>poisson-baseline</strong>
+        <strong>high-order-verification-baseline</strong>
         
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.poisson.poisson_baseline</code>
+        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.poisson.high_order_verification</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
-                onclick="_openCompositeLoom('viva_fenics.composites.poisson.poisson_baseline')">🧬 explore &amp; run ↗</button>
+                onclick="_openCompositeLoom('viva_fenics.composites.poisson.high_order_verification')">🧬 explore &amp; run ↗</button>
         
       </div>
       
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="text" class="baseline-composite-input" data-baseline-name="poisson-baseline"
-               value="viva_fenics.composites.poisson.poisson_baseline" placeholder="pkg.composites.name"
+        <input type="text" class="baseline-composite-input" data-baseline-name="high-order-verification-baseline"
+               value="viva_fenics.composites.poisson.high_order_verification" placeholder="pkg.composites.name"
                style="flex:1;min-width:200px;font-family:monospace;font-size:0.82em;padding:3px 6px" />
         <button type="button" class="action-btn baseline-composite-set" style="font-size:0.8em"
-                data-baseline-name="poisson-baseline">Set composite</button>
+                data-baseline-name="high-order-verification-baseline">Set composite</button>
       </div>
-      <div class="baseline-composite-status muted" data-baseline-name="poisson-baseline" style="font-size:0.8em;margin-top:2px"></div>
+      <div class="baseline-composite-status muted" data-baseline-name="high-order-verification-baseline" style="font-size:0.8em;margin-top:2px"></div>
       
       <div class="model-config-mount" style="margin-top:8px">
         <p class="muted" style="font-size:0.85em;margin:0">Loading configuration…</p></div>
@@ -595,11 +608,26 @@ it.
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">convergence-multi-order</strong>
+          <a href="/viva-fenics/dashboard/studies/poisson-validation/viz/convergence_multi_order.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Log-log L2 error vs mesh size for P1/P2/P3, each with a fitted rate and a dotted theoretical-optimal-rate reference triangle.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/poisson-validation/viz/convergence_multi_order.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="convergence-multi-order"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
           <strong style="flex:1">solution-heatmap</strong>
           <a href="/viva-fenics/dashboard/studies/poisson-validation/viz/solution_heatmap.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the FEM solution vs the manufactured exact solution.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the smooth manufactured solution u = sin(πx)sin(πy).</p>
         
         <iframe src="/viva-fenics/dashboard/studies/poisson-validation/viz/solution_heatmap.html"
                 style="width:100%;min-height:200px;border:0;display:block"
@@ -688,10 +716,10 @@ it.
     
     
     
-    <li class="expected-behavior-item" id="bt-l2-error-within-tolerance"
+    <li class="expected-behavior-item" id="bt-p1-achieves-optimal-rate"
         data-test-kind="behavioral"
         
-        data-pytest-node="l2-error-within-tolerance"
+        data-pytest-node="p1-achieves-optimal-rate"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -700,20 +728,102 @@ it.
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">l2-error-within-tolerance</strong>
+        <strong style="font-size: 0.9em;">p1-achieves-optimal-rate</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>poisson-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>high-order-verification-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">The L2 norm of (numeric solution - exact manufactured solution) must be
-within numerical tolerance of zero.
+      <div style="margin-top: 6px; font-size: 0.95em;">P1&#39;s log-log L2-error-vs-h slope, fit over the finer half of the
+resolution sweep (16/32/64, dropping the coarsest point to avoid any
+pre-asymptotic contamination), must be within 0.25 of the theoretical
+optimum 2.0.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "l2_error", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "A quadratic manufactured solution lies exactly in the degree-2 Lagrange trial space, so the discretization error is zero up to solver/quadrature round-off; 1e-10 is a generous ceiling above that floor (observed ~2.8e-13)."}, "value": 1e-10}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "p1_rate", "kind": "derived_scalar"}
+pass_if: {"high": 2.25, "low": 1.75, "op": "range", "provenance": {"kind": "theory", "note": "A priori FEM theory: degree-p Lagrange elements converge in L2 at O(h^(p+1)) on a sufficiently smooth problem; p=1 -\u003e rate 2.0. 0.25 is a generous margin around that theoretical value, not a fitted threshold; the achieved production rate is 1.998."}}</pre>
+      </details>
+      
+      
+      
+      
+    </li>
+    
+    
+    
+    
+    
+    
+    
+    
+    <li class="expected-behavior-item" id="bt-p2-achieves-optimal-rate"
+        data-test-kind="behavioral"
+        
+        data-pytest-node="p2-achieves-optimal-rate"
+        data-classification="primary"
+        data-result="pending"
+        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
+      
+        
+      <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+        <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
+        <span class="classification-pill classification-primary">primary</span>
+        <strong style="font-size: 0.9em;">p2-achieves-optimal-rate</strong>
+        
+        <span class="muted" style="font-size:0.78em">requires: <code>high-order-verification-baseline</code></span>
+        
+      </div>
+      <div style="margin-top: 6px; font-size: 0.95em;">P2&#39;s log-log L2-error-vs-h slope, fit over resolutions 16/32/64, must
+be within 0.25 of the theoretical optimum 3.0.
+</div>
+      
+      
+      <details style="margin-top: 6px; font-size: 0.82em;">
+        <summary class="muted" style="cursor: pointer;">Assertion</summary>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "p2_rate", "kind": "derived_scalar"}
+pass_if: {"high": 3.25, "low": 2.75, "op": "range", "provenance": {"kind": "theory", "note": "p=2 -\u003e theoretical L2 rate 3.0. 0.25 margin around theory; achieved production rate is 3.000."}}</pre>
+      </details>
+      
+      
+      
+      
+    </li>
+    
+    
+    
+    
+    
+    
+    
+    
+    <li class="expected-behavior-item" id="bt-p3-achieves-optimal-rate"
+        data-test-kind="behavioral"
+        
+        data-pytest-node="p3-achieves-optimal-rate"
+        data-classification="primary"
+        data-result="pending"
+        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
+      
+        
+      <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+        <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
+        <span class="classification-pill classification-primary">primary</span>
+        <strong style="font-size: 0.9em;">p3-achieves-optimal-rate</strong>
+        
+        <span class="muted" style="font-size:0.78em">requires: <code>high-order-verification-baseline</code></span>
+        
+      </div>
+      <div style="margin-top: 6px; font-size: 0.95em;">P3&#39;s log-log L2-error-vs-h slope, fit over resolutions 16/32/64, must
+be within 0.25 of the theoretical optimum 4.0.
+</div>
+      
+      
+      <details style="margin-top: 6px; font-size: 0.82em;">
+        <summary class="muted" style="cursor: pointer;">Assertion</summary>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "p3_rate", "kind": "derived_scalar"}
+pass_if: {"high": 4.25, "low": 3.75, "op": "range", "provenance": {"kind": "theory", "note": "p=3 -\u003e theoretical L2 rate 4.0, the most demanding of the three orders (requires elevated quadrature so the check isn\u0027t itself quadrature-limited -- see fem.l2_error_exact). 0.25 margin around theory; achieved production rate is 4.000."}}</pre>
       </details>
       
       
@@ -805,6 +915,17 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "A quadratic 
 
     
     
+    <div class="decide-section" style="margin-top:18px">
+      <h3 class="overview-label">Conclusion</h3>
+      <pre style="background:#f8fafc;padding:12px;border-left:3px solid #94a3b8;border-radius:3px;white-space:pre-wrap;font-family:inherit;font-size:0.9em;line-height:1.5;margin:0">All three element orders hit their theoretically optimal L2 convergence
+rate: P1 -&gt; 1.998 (theory 2.0), P2 -&gt; 3.000 (theory 3.0), P3 -&gt; 4.000
+(theory 4.0), fit over the finer half of an 8/16/32/64 resolution sweep.
+The dolfinx bridge is confirmed genuinely high-order-accurate, not merely
+correct at a single order -- the pipeline gate for mesh-convergence and
+transient-diffusion.
+</pre>
+    </div>
+    
     
 
   </div>
@@ -839,7 +960,7 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "A quadratic 
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "770113d655809e97c7a865b30c7f50154e935746", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/770113d655809e97c7a865b30c7f50154e935746", "branch": "main", "generated_at": "2026-08-01 02:06 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "poisson-validation";
@@ -971,7 +1092,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
   var el = document.getElementById("study-configure-run");
   if (!el || !window.ConfigureRun) return;
   
-  var compositeRef = "viva_fenics.composites.poisson.poisson_baseline";
+  var compositeRef = "viva_fenics.composites.poisson.high_order_verification";
   
   var slug = window._studyName || "poisson-validation";
   ConfigureRun.mount(el, { composite: compositeRef, target: "study", study: slug });

@@ -14,7 +14,7 @@
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    <span class="study-name" id="study-name" data-slug="transient-diffusion" title="transient-diffusion">Transient diffusion: time-stepping</span>
+    <span class="study-name" id="study-name" data-slug="transient-diffusion" title="transient-diffusion">Morphogen gradient: Source-Diffusion-Degradation (French flag)</span>
     
     <span class="phase-pill phase-build" title="Lifecycle: Design → Build → Simulate → Evaluate → Decide">Build</span>
     
@@ -221,21 +221,40 @@
     
     <div class="overview-section">
       <div id="question-text" class="overview-prose" data-editable="true" data-field="question"
-           data-placeholder="+ Add the research question this study asks">Does a time-stepped `DiffusionProcess` (backward-Euler, dolfinx-backed)
-conserve mass under a no-flux boundary while smoothing/decaying an initial
-field, when driven through process-bigraph&#39;s own Composite tick loop
-(not called directly)?
+           data-placeholder="+ Add the research question this study asks">Do two independently-authored processes -- ``DiffusionProcess`` (extended
+with a real Dirichlet source boundary c=c0 at x=0) and
+``LinearDegradationProcess`` (the pure-numpy rate ``-k*c``), coupled ONLY
+through shared bigraph stores -- produce a genuine exponential morphogen
+gradient c(x) = c0*exp(-x/lambda) at steady state, with decay length
+lambda = sqrt(D/k) matching the classic Source-Diffusion-Degradation (SDD)
+analytic prediction, when driven through process-bigraph&#39;s own Composite
+tick loop? And do Wolpert &#34;French flag&#34; positional-information thresholds
+applied to that gradient partition the domain into 3 fate regions whose
+boundaries shift predictably as lambda shrinks?
 </div>
       <div id="hypothesis-text" class="overview-prose" data-editable="true" data-field="hypothesis"
-           data-placeholder="(predicted outcome)">With no Dirichlet boundary condition (natural Neumann / zero-flux), the
-FEM integral of the field should stay flat tick over tick while the
-gaussian bump&#39;s peak monotonically decays as it spreads.
+           data-placeholder="(predicted outcome)">Neither process implements SDD itself: DiffusionProcess only knows how to
+solve backward-Euler diffusion with an optional fixed-value boundary, and
+LinearDegradationProcess only knows how to read a field and write back
+``-k*c``. If the shared-store wiring genuinely couples them, a field
+seeded at zero should build up from the source boundary into a steady
+gradient whose SHAPE is exponential (a straight line on a log-linear plot)
+and whose fitted decay length matches lambda=sqrt(D/k) -- not just &#34;some
+decreasing curve&#34; -- and sweeping k at fixed D should shrink that decay
+length in the analytically predicted sqrt(D/k) proportion, moving the
+French-flag threshold crossings inward in lockstep.
 </div>
-      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the `transient_diffusion` composite for several ticks and verify (a)
-the field&#39;s peak decays as diffusion spreads the initial gaussian bump and
-(b) the FEM-integral mass stays conserved (no-flux boundary), exercising
-the additive-delta store convention through a real Composite.run(), not
-just DiffusionProcess.update() in isolation.
+      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the ``morphogen_gradient`` composite to steady state across THREE
+decay-length regimes (D fixed, k swept: 1.0/2.0/4.0, giving
+lambda=0.316/0.224/0.158) and confirm (a) each regime&#39;s steady profile is
+genuinely exponential -- a fitted decay length within 10% of the analytic
+lambda=sqrt(D/k), not just a qualitatively decreasing field -- (b) fields
+stay bounded in [0, c0] (no accumulate-vs-overwrite blow-up, no unphysical
+negative concentration), and (c) French-flag threshold crossings
+(c=0.5*c0, c=0.1*c0) land within 10% of their analytic x-positions AND
+shift monotonically inward as k increases -- demonstrating lambda&#39;s
+control over the positional-information map is a real, tunable property
+of the composed system, not a fixed artifact of one parameter set.
 </div>
     </div>
     
@@ -375,9 +394,11 @@ just DiffusionProcess.update() in isolation.
         </div>
         
         
-        <div><strong>Proceed when:</strong> <span class="muted">Mass conservation and peak decay both pass, confirming the time-stepped
-DiffusionProcess wrapper is trustworthy before reaction-diffusion
-couples a second process into its shared stores.
+        <div><strong>Proceed when:</strong> <span class="muted">The exponential gradient and French-flag thresholds both pass,
+confirming the extended DiffusionProcess (Dirichlet source boundary)
+and the new LinearDegradationProcess are trustworthy building blocks
+before reaction-diffusion couples DiffusionProcess to a different
+reaction process in its own shared-store pattern.
 </span></div>
         
       </div>
@@ -395,8 +416,8 @@ couples a second process into its shared stores.
         
         
         <p style="margin:0">
-          <strong>2</strong> tests defined —
-            <span class="classification-pill classification-primary">1 primary</span>
+          <strong>3</strong> tests defined —
+            <span class="classification-pill classification-primary">2 primary</span>
             <span class="classification-pill classification-supporting">1 supporting</span>
           <a onclick="_setStudyTab('tests')" style="cursor:pointer;color:#3b82f6;text-decoration:underline;margin-left:6px">View on Tests tab →</a>
         </p>
@@ -425,7 +446,7 @@ couples a second process into its shared stores.
 
       <div class="study-counts-strip">
         <div class="count-cell">
-          <strong>0</strong>
+          <strong>2</strong>
           <span class="count-label">variants</span>
         </div>
         <div class="count-cell">
@@ -464,24 +485,24 @@ couples a second process into its shared stores.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.diffusion.transient_diffusion" data-model-overrides='{"D": 0.1, "dt": 0.01, "resolution": 32}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.morphogen_gradient.morphogen_gradient" data-model-overrides='{"D": 0.1, "c0": 1.0, "dt": 0.02, "k": 1.0, "resolution": 64}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong>diffusion-baseline</strong>
+        <strong>morphogen-baseline</strong>
         
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.diffusion.transient_diffusion</code>
+        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.morphogen_gradient.morphogen_gradient</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
-                onclick="_openCompositeLoom('viva_fenics.composites.diffusion.transient_diffusion')">🧬 explore &amp; run ↗</button>
+                onclick="_openCompositeLoom('viva_fenics.composites.morphogen_gradient.morphogen_gradient')">🧬 explore &amp; run ↗</button>
         
       </div>
       
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="text" class="baseline-composite-input" data-baseline-name="diffusion-baseline"
-               value="viva_fenics.composites.diffusion.transient_diffusion" placeholder="pkg.composites.name"
+        <input type="text" class="baseline-composite-input" data-baseline-name="morphogen-baseline"
+               value="viva_fenics.composites.morphogen_gradient.morphogen_gradient" placeholder="pkg.composites.name"
                style="flex:1;min-width:200px;font-family:monospace;font-size:0.82em;padding:3px 6px" />
         <button type="button" class="action-btn baseline-composite-set" style="font-size:0.8em"
-                data-baseline-name="diffusion-baseline">Set composite</button>
+                data-baseline-name="morphogen-baseline">Set composite</button>
       </div>
-      <div class="baseline-composite-status muted" data-baseline-name="diffusion-baseline" style="font-size:0.8em;margin-top:2px"></div>
+      <div class="baseline-composite-status muted" data-baseline-name="morphogen-baseline" style="font-size:0.8em;margin-top:2px"></div>
       
       <div class="model-config-mount" style="margin-top:8px">
         <p class="muted" style="font-size:0.85em;margin:0">Loading configuration…</p></div>
@@ -599,15 +620,75 @@ couples a second process into its shared stores.
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">field-animation</strong>
-          <a href="/viva-fenics/dashboard/studies/transient-diffusion/viz/diffusion_animation.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">morphogen-animation</strong>
+          <a href="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_animation.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly animation of the diffusing field over time (peak decay + mass conservation).</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Animated baseline gradient forming: the morphogen spreading from the x=0 source boundary to its steady exponential shape -- DiffusionProcess (Dirichlet source) ⊕ LinearDegradationProcess, coupled purely through shared stores.</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/transient-diffusion/viz/diffusion_animation.html"
+        <iframe src="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_animation.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="field-animation"
+                loading="lazy" title="morphogen-animation"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">morphogen-profile-fit</strong>
+          <a href="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_profile_fit.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Steady-state c(x) for all 3 regimes (log y-axis), each overlaid with its analytic c0*exp(-x/lambda) fit -- shows lambda=sqrt(D/k) controlling the gradient&#39;s range.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_profile_fit.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="morphogen-profile-fit"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">morphogen-french-flag-baseline</strong>
+          <a href="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_french_flag_baseline.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">French-flag positional-information readout, baseline regime (k=1.0, lambda=0.316): 3 fate regions (blue/white/red) with dashed reference lines at the analytic threshold crossings.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_french_flag_baseline.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="morphogen-french-flag-baseline"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">morphogen-french-flag-short</strong>
+          <a href="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_french_flag_short.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">French-flag readout, short-range regime (k=2.0, lambda=0.224) -- visibly narrower fate regions than baseline.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_french_flag_short.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="morphogen-french-flag-short"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">morphogen-french-flag-shorter</strong>
+          <a href="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_french_flag_shorter.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">French-flag readout, shorter-range regime (k=4.0, lambda=0.158) -- narrower still, confirming lambda&#39;s monotonic control of the fate map.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/transient-diffusion/viz/morphogen_french_flag_shorter.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="morphogen-french-flag-shorter"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
@@ -692,10 +773,10 @@ couples a second process into its shared stores.
     
     
     
-    <li class="expected-behavior-item" id="bt-mass-conserved"
+    <li class="expected-behavior-item" id="bt-exponential-gradient"
         data-test-kind="behavioral"
         
-        data-pytest-node="mass-conserved"
+        data-pytest-node="exponential-gradient"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -704,21 +785,21 @@ couples a second process into its shared stores.
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">mass-conserved</strong>
+        <strong style="font-size: 0.9em;">exponential-gradient</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>diffusion-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>morphogen-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">The FEM integral of the field (a mass-bookkeeping sensor reading,
-recomputed fresh every tick) must not drift by more than 5% between the
-first and last recorded tick.
+      <div style="margin-top: 6px; font-size: 0.95em;">max over the 3 regimes of |lambda_fit - lambda_analytic| / lambda_analytic
+must be &lt; 10%, where lambda_fit is a least-squares fit of log(c) vs x
+over x in [2h, 0.4] on each regime&#39;s steady-state field.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "mass_drift_fraction", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Zero-flux (natural Neumann) boundary conditions conserve the domain integral exactly in the continuous problem; 5% is a numerical-noise margin for the discrete backward-Euler solve."}, "value": 0.05}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "lambda_rel_err_max", "kind": "derived_scalar"}
+pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "The committed production run (resolution=64, 800 ticks/regime) achieved max rel_err=1.63% (baseline k=1.0; short-range/shorter- range regimes were 0.23%/0.01%). 10% leaves \u003e6x headroom below that while still catching a genuinely disconnected source-boundary or degradation term (which would produce a non-exponential or wrong-slope profile, not a small numerical discrepancy)."}, "value": 0.1}</pre>
       </details>
       
       
@@ -733,10 +814,50 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Zero-flux (n
     
     
     
-    <li class="expected-behavior-item" id="bt-peak-decays"
+    <li class="expected-behavior-item" id="bt-fields-bounded-positive"
         data-test-kind="behavioral"
         
-        data-pytest-node="peak-decays"
+        data-pytest-node="fields-bounded-positive"
+        data-classification="primary"
+        data-result="pending"
+        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
+      
+        
+      <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+        <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
+        <span class="classification-pill classification-primary">primary</span>
+        <strong style="font-size: 0.9em;">fields-bounded-positive</strong>
+        
+        <span class="muted" style="font-size:0.78em">requires: <code>morphogen-baseline</code></span>
+        
+      </div>
+      <div style="margin-top: 6px; font-size: 0.95em;">Every regime&#39;s final field must be finite, non-negative (within solver
+noise), and not exceed c0 by more than a 5% margin.
+</div>
+      
+      
+      <details style="margin-top: 6px; font-size: 0.82em;">
+        <summary class="muted" style="cursor: pointer;">Assertion</summary>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "fields_bounded_positive", "kind": "derived_scalar"}
+pass_if: {"op": "==", "provenance": {"kind": "theory", "note": "A degrading, boundary-sourced field with no other input can never physically exceed its boundary value c0 or go negative; this is also the field-range guard against the accumulate-vs-overwrite regression class (stores.source composing additively instead of being overwritten each tick), which would blow the field well past this band -- see this study\u0027s report for the achieved c_range=[0.0036, 1.0000] (shorter-range) through [0.0845, 1.0000] (baseline)."}, "value": true}</pre>
+      </details>
+      
+      
+      
+      
+    </li>
+    
+    
+    
+    
+    
+    
+    
+    
+    <li class="expected-behavior-item" id="bt-french-flag-thresholds"
+        data-test-kind="behavioral"
+        
+        data-pytest-node="french-flag-thresholds"
         data-classification="supporting"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #3b82f6; background: #f8fafc; border-radius: 4px;">
@@ -745,20 +866,23 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Zero-flux (n
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-supporting">supporting</span>
-        <strong style="font-size: 0.9em;">peak-decays</strong>
+        <strong style="font-size: 0.9em;">french-flag-thresholds</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>diffusion-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>morphogen-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">max(solution) at the final recorded tick must be strictly less than
-max(solution) at the first recorded tick.
+      <div style="margin-top: 6px; font-size: 0.95em;">max over the 3 regimes of the French-flag high-threshold (c=0.5*c0)
+crossing&#39;s relative error vs its analytic x-position must be &lt; 10%, AND
+x_high/x_low must strictly decrease baseline -&gt; short-range -&gt;
+shorter-range, AND baseline&#39;s x_high minus shorter-range&#39;s x_high must
+be &gt;= 0.05.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "peak_ratio", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "value": 1.0}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "boundary_shift_baseline_minus_shorter", "kind": "derived_scalar"}
+pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The committed production run achieved x_high rel_err \u003c=0.8% across all 3 regimes and a baseline-minus-shorter-range x_high shift of 0.111 (0.221 -\u003e 0.110), with x_low shifting 0.811 -\u003e 0.364 over the same sweep. 0.05 leaves \u003e2x headroom below the achieved shift while still catching a \"lambda has no real effect\" regression."}, "value": 0.05}</pre>
       </details>
       
       
@@ -884,7 +1008,7 @@ pass_if: {"op": "\u003c", "value": 1.0}</pre>
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "770113d655809e97c7a865b30c7f50154e935746", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/770113d655809e97c7a865b30c7f50154e935746", "branch": "main", "generated_at": "2026-08-01 02:06 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "transient-diffusion";
@@ -1016,7 +1140,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
   var el = document.getElementById("study-configure-run");
   if (!el || !window.ConfigureRun) return;
   
-  var compositeRef = "viva_fenics.composites.diffusion.transient_diffusion";
+  var compositeRef = "viva_fenics.composites.morphogen_gradient.morphogen_gradient";
   
   var slug = window._studyName || "transient-diffusion";
   ConfigureRun.mount(el, { composite: compositeRef, target: "study", study: slug });

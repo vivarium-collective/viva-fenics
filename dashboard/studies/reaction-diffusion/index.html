@@ -14,7 +14,7 @@
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    <span class="study-name" id="study-name" data-slug="reaction-diffusion" title="reaction-diffusion">Reaction-diffusion: bigraph coupling (headline)</span>
+    <span class="study-name" id="study-name" data-slug="reaction-diffusion" title="reaction-diffusion">Turing patterns: Gray-Scott reaction-diffusion (headline)</span>
     
     <span class="phase-pill phase-build" title="Lifecycle: Design → Build → Simulate → Evaluate → Decide">Build</span>
     
@@ -221,27 +221,35 @@
     
     <div class="overview-section">
       <div id="question-text" class="overview-prose" data-editable="true" data-field="question"
-           data-placeholder="+ Add the research question this study asks">Do two independently-authored processes -- `DiffusionProcess` (no
-knowledge of reactions) and `LogisticReactionProcess` (no knowledge of
-FEM/diffusion) -- produce genuine Fisher-KPP reaction-diffusion dynamics
-when wired to the same bigraph stores, with neither process calling into
-the other?
+           data-placeholder="+ Add the research question this study asks">Do three independently-authored processes -- TWO ``DiffusionProcess``
+instances (one per species, U at Du and V at Dv=Du/2, each with no
+knowledge of reactions) and ONE ``GrayScottReactionProcess`` (no knowledge
+of FEM/diffusion) -- produce a genuine 2D Turing instability when wired to
+the same bigraph stores: does a near-uniform field spontaneously
+self-organize into spots/stripes/labyrinth patterns, with none of the
+three processes calling into either of the others?
 </div>
       <div id="hypothesis-text" class="overview-prose" data-editable="true" data-field="hypothesis"
            data-placeholder="(predicted outcome)">Coupling is entirely a property of the document wiring (shared
-`stores.solution` / `stores.source` paths), not of either process&#39;s
-implementation: with the reaction term active (r=2.0), the field&#39;s total
-mass should grow dramatically faster than a near-zero-reaction control
-(r=1e-9, identical wiring) run for the same duration, while logistic
-saturation keeps the field bounded near the carrying capacity K.
+``stores.u`` / ``stores.v`` / ``stores.source_u`` / ``stores.source_v``
+paths), not of any one process&#39;s implementation: starting from U~1, V~0
+everywhere plus a small seeded perturbation, the differential diffusion
+(Du &gt; Dv) between the two DiffusionProcess instances, combined with the
+GrayScottReactionProcess&#39;s nonlinear feed/kill kinetics, should amplify
+the perturbation into a spatially heterogeneous, bounded pattern -- not
+decay back to uniformity, and not blow up -- and different (F, k) kinetic
+parameters should produce visibly different pattern morphologies.
 </div>
-      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the `reaction_diffusion` composite (DiffusionProcess ⊕
-LogisticReactionProcess) and confirm (a) mass grows far faster than a
-near-zero-reaction control under identical wiring/duration -- isolating
-the reaction term&#39;s causal contribution from solver noise -- and (b) the
-field stays bounded near the logistic carrying capacity K rather than
-blowing up, which would indicate the `source` store were composing
-additively instead of being overwritten each tick.
+      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the ``turing_patterns`` composite (2x DiffusionProcess ⊕
+GrayScottReactionProcess) across three Gray-Scott parameter regimes and
+confirm (a) the baseline regime&#39;s V field grows substantially more
+spatially heterogeneous over the run (pattern EMERGES from a near-uniform
+start), (b) the resulting pattern is bounded and structurally
+non-trivial -- a finite fraction of the domain organizes into pattern
+features, not the whole domain and not none of it -- and (c) different
+(F, k) regimes produce measurably different pattern morphology (coverage
+fraction), demonstrating the composed system is a genuine, tunable Turing
+system, not a fixed numerical artifact.
 </div>
     </div>
     
@@ -379,7 +387,7 @@ additively instead of being overwritten each tick.
         
         <div><strong>Proceed when:</strong> <span class="muted">No further studies in this investigation depend on reaction-diffusion --
 it is the investigation&#39;s headline/terminal study, demonstrating the
-composability claim the other three studies build up to.
+composability + visual claim the other studies build up to.
 </span></div>
         
       </div>
@@ -397,8 +405,9 @@ composability claim the other three studies build up to.
         
         
         <p style="margin:0">
-          <strong>2</strong> tests defined —
+          <strong>3</strong> tests defined —
             <span class="classification-pill classification-primary">2 primary</span>
+            <span class="classification-pill classification-supporting">1 supporting</span>
           <a onclick="_setStudyTab('tests')" style="cursor:pointer;color:#3b82f6;text-decoration:underline;margin-left:6px">View on Tests tab →</a>
         </p>
       </div>
@@ -465,24 +474,24 @@ composability claim the other three studies build up to.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.reaction_diffusion.reaction_diffusion" data-model-overrides='{"D": 0.05, "dt": 0.01, "r": 2.0, "resolution": 24}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.turing_patterns.turing_patterns" data-model-overrides='{"Du": 2e-05, "Dv": 1e-05, "F": 0.037, "dt": 1.0, "k": 0.06, "resolution": 96}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong>reaction-diffusion-baseline</strong>
+        <strong>turing-baseline</strong>
         
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.reaction_diffusion.reaction_diffusion</code>
+        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.turing_patterns.turing_patterns</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
-                onclick="_openCompositeLoom('viva_fenics.composites.reaction_diffusion.reaction_diffusion')">🧬 explore &amp; run ↗</button>
+                onclick="_openCompositeLoom('viva_fenics.composites.turing_patterns.turing_patterns')">🧬 explore &amp; run ↗</button>
         
       </div>
       
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="text" class="baseline-composite-input" data-baseline-name="reaction-diffusion-baseline"
-               value="viva_fenics.composites.reaction_diffusion.reaction_diffusion" placeholder="pkg.composites.name"
+        <input type="text" class="baseline-composite-input" data-baseline-name="turing-baseline"
+               value="viva_fenics.composites.turing_patterns.turing_patterns" placeholder="pkg.composites.name"
                style="flex:1;min-width:200px;font-family:monospace;font-size:0.82em;padding:3px 6px" />
         <button type="button" class="action-btn baseline-composite-set" style="font-size:0.8em"
-                data-baseline-name="reaction-diffusion-baseline">Set composite</button>
+                data-baseline-name="turing-baseline">Set composite</button>
       </div>
-      <div class="baseline-composite-status muted" data-baseline-name="reaction-diffusion-baseline" style="font-size:0.8em;margin-top:2px"></div>
+      <div class="baseline-composite-status muted" data-baseline-name="turing-baseline" style="font-size:0.8em;margin-top:2px"></div>
       
       <div class="model-config-mount" style="margin-top:8px">
         <p class="muted" style="font-size:0.85em;margin:0">Loading configuration…</p></div>
@@ -600,15 +609,60 @@ composability claim the other three studies build up to.
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">wavefront-animation</strong>
-          <a href="/viva-fenics/dashboard/studies/reaction-diffusion/viz/reaction_diffusion_animation.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">turing-pattern-animation</strong>
+          <a href="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_animation.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly animation of the reaction-diffusion wavefront (mass growth via coupling).</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Animated V field: the Gray-Scott pattern self-organizing from a near-uniform start (baseline coral/mitosis-like regime) -- 2x DiffusionProcess ⊕ GrayScottReactionProcess, coupled purely through shared stores.</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/reaction-diffusion/viz/reaction_diffusion_animation.html"
+        <iframe src="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_animation.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="wavefront-animation"
+                loading="lazy" title="turing-pattern-animation"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">turing-pattern-baseline-final</strong>
+          <a href="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_baseline_final.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Final V field, coral/mitosis-like regime (F=0.037, k=0.06).</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_baseline_final.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="turing-pattern-baseline-final"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">turing-pattern-labyrinth-final</strong>
+          <a href="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_labyrinth_final.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Final V field, labyrinth regime (F=0.03, k=0.06) -- a visibly different morphology from the baseline.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_labyrinth_final.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="turing-pattern-labyrinth-final"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">turing-pattern-stripes-final</strong>
+          <a href="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_stripes_final.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Final V field, stripes/worms regime (F=0.055, k=0.062) -- a third distinct morphology.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_stripes_final.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="turing-pattern-stripes-final"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
@@ -693,10 +747,10 @@ composability claim the other three studies build up to.
     
     
     
-    <li class="expected-behavior-item" id="bt-mass-grows-via-coupling"
+    <li class="expected-behavior-item" id="bt-pattern-emerges"
         data-test-kind="behavioral"
         
-        data-pytest-node="mass-grows-via-coupling"
+        data-pytest-node="pattern-emerges"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -705,20 +759,20 @@ composability claim the other three studies build up to.
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">mass-grows-via-coupling</strong>
+        <strong style="font-size: 0.9em;">pattern-emerges</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>reaction-diffusion-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>turing-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">(last_integral - first_integral) for the r=2.0 run must be at least 5x
-the same quantity for a same-duration, same-wiring r=1e-9 control.
+      <div style="margin-top: 6px; font-size: 0.95em;">var(V) at the end of the baseline run must be at least 5x var(V) at the
+start.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
         <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "growth_ratio", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "5x is a clear-separation band between genuine reaction-driven growth and residual solver/quadrature noise, calibrated against the r~=0 control (observed ratio ~2.6e9x at r=2.0 vs r=1e-9, D=0.05, resolution=24, run_time=0.5)."}, "value": 5.0}</pre>
+pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The committed production run (resolution=96, 6000 ticks, dt=1.0) achieved growth=10.5x (var(V) 0.00111 -\u003e 0.01169); 5.0 leaves ~2.1x headroom below that while still catching a \"reaction never actually coupled in\" regression (which produces order-1 growth from quadrature noise alone, per the analogous check in ``reaction_diffusion``\u0027s Fisher-KPP study)."}, "value": 5.0}</pre>
       </details>
       
       
@@ -733,10 +787,10 @@ pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "5x is 
     
     
     
-    <li class="expected-behavior-item" id="bt-field-bounded-by-k"
+    <li class="expected-behavior-item" id="bt-pattern-structured-not-blowup"
         data-test-kind="behavioral"
         
-        data-pytest-node="field-bounded-by-k"
+        data-pytest-node="pattern-structured-not-blowup"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -745,20 +799,61 @@ pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "5x is 
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">field-bounded-by-k</strong>
+        <strong style="font-size: 0.9em;">pattern-structured-not-blowup</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>reaction-diffusion-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>turing-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">max(solution) across every recorded tick of the r=2.0 run must stay
-below 1.2 (K=1.0 plus margin).
+      <div style="margin-top: 6px; font-size: 0.95em;">The baseline&#39;s final-V coverage fraction (see ``_pattern_metrics`` in
+``sims/run.py``) must land in [0.1, 0.7], and every regime&#39;s final
+U/V fields must stay within (-0.5, 1.5).
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "max_field", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Logistic saturation caps u at K=1.0 in the continuous limit regardless of run length; 1.2 leaves headroom for discretization overshoot while still catching an accumulate-vs-overwrite regression, which blows well past this bound."}, "value": 1.2}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "coverage_fraction", "kind": "derived_scalar"}
+pass_if: {"high": 0.7, "low": 0.1, "op": "in_range", "provenance": {"kind": "calibration", "note": "The committed production run\u0027s baseline achieved coverage=0.483 (V in [0.004, 0.367], comfortably bounded); [0.1, 0.7] brackets that with headroom on both sides while still catching \"pattern never really emerged\" (near 0) or \"whole domain saturated/blew up\" (near 1). The field-bound half of this check mirrors the FAST unit tests\u0027 (-0.5, 1.5) band, itself the accumulate-vs-overwrite regression guard (see ``tests/test_turing_patterns.py``)."}}</pre>
+      </details>
+      
+      
+      
+      
+    </li>
+    
+    
+    
+    
+    
+    
+    
+    
+    <li class="expected-behavior-item" id="bt-regimes-differ"
+        data-test-kind="behavioral"
+        
+        data-pytest-node="regimes-differ"
+        data-classification="supporting"
+        data-result="pending"
+        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #3b82f6; background: #f8fafc; border-radius: 4px;">
+      
+        
+      <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+        <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
+        <span class="classification-pill classification-supporting">supporting</span>
+        <strong style="font-size: 0.9em;">regimes-differ</strong>
+        
+        <span class="muted" style="font-size:0.78em">requires: <code>turing-baseline</code></span>
+        
+      </div>
+      <div style="margin-top: 6px; font-size: 0.95em;">max(coverage) - min(coverage) across the baseline + 2 variant regimes
+must be at least 0.1.
+</div>
+      
+      
+      <details style="margin-top: 6px; font-size: 0.82em;">
+        <summary class="muted" style="cursor: pointer;">Assertion</summary>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "coverage_spread", "kind": "derived_scalar"}
+pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The committed production run achieved coverage 0.483 (baseline) / 0.290 (labyrinth) / 0.148 (stripes) -- a spread of 0.336. 0.1 leaves ~3.4x headroom below that while still catching a \"regimes don\u0027t actually differ\" regression. Coverage is partly confounded by the variants\u0027 smaller step budget/coarser mesh (an explicit, disclosed wall-time tradeoff -- see the study report); the labyrinth regime\u0027s connected-component count (9, vs 1 for the other two regimes) is a second, less-confounded topological signal of the same claim, not gated on here only because it isn\u0027t defined identically enough across regimes for a clean numeric threshold."}, "value": 0.1}</pre>
       </details>
       
       
@@ -884,7 +979,7 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Logistic sat
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "770113d655809e97c7a865b30c7f50154e935746", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/770113d655809e97c7a865b30c7f50154e935746", "branch": "main", "generated_at": "2026-08-01 02:06 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "reaction-diffusion";
@@ -1016,7 +1111,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
   var el = document.getElementById("study-configure-run");
   if (!el || !window.ConfigureRun) return;
   
-  var compositeRef = "viva_fenics.composites.reaction_diffusion.reaction_diffusion";
+  var compositeRef = "viva_fenics.composites.turing_patterns.turing_patterns";
   
   var slug = window._studyName || "reaction-diffusion";
   ConfigureRun.mount(el, { composite: compositeRef, target: "study", study: slug });

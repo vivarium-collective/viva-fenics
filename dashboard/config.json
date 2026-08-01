@@ -2,6 +2,6 @@
   "mode": "snapshot",
   "smsApiBase": "",
   "repo": "https://github.com/vivarium-collective/viva-fenics",
-  "commit": "770113d655809e97c7a865b30c7f50154e935746",
+  "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6",
   "generated_from_ref": "main"
 }

@@ -14,7 +14,7 @@
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    <span class="study-name" id="study-name" data-slug="complex-geometry" title="complex-geometry">Complex geometry: gmsh-generated non-trivial domains</span>
+    <span class="study-name" id="study-name" data-slug="complex-geometry" title="complex-geometry">Complex geometry: Stokes flow through a porous pillar lattice</span>
     
     <span class="phase-pill phase-build" title="Lifecycle: Design → Build → Simulate → Evaluate → Decide">Build</span>
     
@@ -221,29 +221,36 @@
     
     <div class="overview-section">
       <div id="question-text" class="overview-prose" data-editable="true" data-field="question"
-           data-placeholder="+ Add the research question this study asks">Does a real gmsh-constructed non-trivial planar geometry -- imported into
-dolfinx via `dolfinx.io.gmsh.model_to_mesh` -- produce a genuine
-unstructured triangulation with a positive cell count, and does a real
-Poisson solve on that imported mesh (homogeneous Dirichlet boundary, a
-constant interior source) stay finite, bounded, and non-trivially
-nonzero, across three qualitatively different domain topologies (a
-simply-connected domain with a circular hole, a non-convex re-entrant
-corner, and a multiply-connected annulus)?
+           data-placeholder="+ Add the research question this study asks">Does a real gmsh-constructed periodic array of circular pillars --
+imported into dolfinx via `dolfinx.io.gmsh.model_to_mesh` -- support a
+genuine steady Stokes (creeping) flow solve, driven by a prescribed
+pressure drop, that stays approximately divergence-free and exactly
+no-slip on every pillar and channel wall, and does the effective (Darcy)
+permeability computed from that flow DECREASE monotonically as the
+lattice&#39;s porosity decreases -- the Kozeny-Carman-type physical trend
+expected of any real porous microstructure?
 </div>
       <div id="hypothesis-text" class="overview-prose" data-editable="true" data-field="hypothesis"
-           data-placeholder="(predicted outcome)">The gmsh -&gt; dolfinx import path is standard and robust for any of these
-three domains, so each should import with a cell count well above a
-trivial handful, and -Laplacian(u) = 1 with u=0 on the full boundary
-should have a smooth, non-negative (maximum-principle), interior-peaked
-solution on every one of them -- confirming the FEniCSx bridge works on
-genuinely non-trivial, non-rectangular domains, not only the unit square
-every other study in this investigation uses.
+           data-placeholder="(predicted outcome)">A real Taylor-Hood (P2 velocity / P1 pressure) mixed dolfinx solve on the
+gmsh-generated pillar-lattice mesh, driven by a &#34;do-nothing&#34;
+pressure-boundary-load formulation (no-slip on walls+pillars, pressure
+prescribed only as a natural momentum-equation load at the open
+inflow/outflow boundaries -- see `viva_fenics/processes/flow.py`&#39;s module
+comment above `PorousFlowStep`), should produce a physically valid
+creeping-flow field on every lattice density tried, and the
+volume-averaged x-velocity this field produces -- fed through Darcy&#39;s law
+-- should fall as the pillar packing gets denser (porosity drops),
+matching the qualitative Kozeny-Carman scaling (k ~ phi^3/(1-phi)^2) even
+though a 4-point sweep cannot independently validate that scaling&#39;s exact
+exponents.
 </div>
-      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Build the `complex_geometry` composite (a single `ComplexGeometryStep`:
-gmsh geometry construction -&gt; dolfinx import -&gt; Poisson solve) for each of
-the three named geometries (obstacle, L-shape, annulus) and verify (a)
-each mesh imports with a positive, non-trivial cell count and (b) each
-solve returns a finite, bounded, non-trivial solution field.
+      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Build the `porous_lattice` composite (a single `PorousFlowStep`: gmsh
+pillar-lattice geometry construction -&gt; dolfinx Taylor-Hood import -&gt;
+steady Stokes solve -&gt; Darcy permeability) for a baseline porosity plus 3
+porosity variants (sweeping `pillar_radius` at fixed 4x4 lattice density)
+and verify (a) every solve is approximately divergence-free and exactly
+no-slip on every pillar/wall boundary, and (b) the effective permeability
+k_eff decreases monotonically as porosity decreases across all 4 points.
 </div>
     </div>
     
@@ -380,7 +387,7 @@ solve returns a finite, bounded, non-trivial solution field.
         
         
         <div><strong>Proceed when:</strong> <span class="muted">No further studies in this investigation currently depend on
-complex-geometry; it is the investigation&#39;s non-trivial-domain
+complex-geometry; it is the investigation&#39;s porous-media/Stokes-flow
 showcase, built directly on the validated dolfinx bridge
 (poisson-validation) rather than on the scalar diffusion/reaction
 studies -- it needs a correct FEM solve, not the transient stores this
@@ -402,8 +409,8 @@ investigation&#39;s other advanced studies build on.
         
         
         <p style="margin:0">
-          <strong>3</strong> tests defined —
-            <span class="classification-pill classification-primary">2 primary</span>
+          <strong>4</strong> tests defined —
+            <span class="classification-pill classification-primary">3 primary</span>
             <span class="classification-pill classification-supporting">1 supporting</span>
           <a onclick="_setStudyTab('tests')" style="cursor:pointer;color:#3b82f6;text-decoration:underline;margin-left:6px">View on Tests tab →</a>
         </p>
@@ -432,7 +439,7 @@ investigation&#39;s other advanced studies build on.
 
       <div class="study-counts-strip">
         <div class="count-cell">
-          <strong>2</strong>
+          <strong>3</strong>
           <span class="count-label">variants</span>
         </div>
         <div class="count-cell">
@@ -471,24 +478,24 @@ investigation&#39;s other advanced studies build on.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.complex_geometry.complex_geometry" data-model-overrides='{"geometry": "obstacle", "resolution": 32}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.flow.porous_lattice" data-model-overrides='{"h_far": 0.05, "h_pillar": 0.015, "mu": 1.0, "nx": 4, "ny": 4, "pillar_radius": 0.08, "pressure_drop": 1.0}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong>complex-geometry-baseline</strong>
+        <strong>porous-lattice-baseline</strong>
         
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.complex_geometry.complex_geometry</code>
+        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.flow.porous_lattice</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
-                onclick="_openCompositeLoom('viva_fenics.composites.complex_geometry.complex_geometry')">🧬 explore &amp; run ↗</button>
+                onclick="_openCompositeLoom('viva_fenics.composites.flow.porous_lattice')">🧬 explore &amp; run ↗</button>
         
       </div>
       
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="text" class="baseline-composite-input" data-baseline-name="complex-geometry-baseline"
-               value="viva_fenics.composites.complex_geometry.complex_geometry" placeholder="pkg.composites.name"
+        <input type="text" class="baseline-composite-input" data-baseline-name="porous-lattice-baseline"
+               value="viva_fenics.composites.flow.porous_lattice" placeholder="pkg.composites.name"
                style="flex:1;min-width:200px;font-family:monospace;font-size:0.82em;padding:3px 6px" />
         <button type="button" class="action-btn baseline-composite-set" style="font-size:0.8em"
-                data-baseline-name="complex-geometry-baseline">Set composite</button>
+                data-baseline-name="porous-lattice-baseline">Set composite</button>
       </div>
-      <div class="baseline-composite-status muted" data-baseline-name="complex-geometry-baseline" style="font-size:0.8em;margin-top:2px"></div>
+      <div class="baseline-composite-status muted" data-baseline-name="porous-lattice-baseline" style="font-size:0.8em;margin-top:2px"></div>
       
       <div class="model-config-mount" style="margin-top:8px">
         <p class="muted" style="font-size:0.85em;margin:0">Loading configuration…</p></div>
@@ -606,30 +613,45 @@ investigation&#39;s other advanced studies build on.
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">field-heatmap-obstacle</strong>
-          <a href="/viva-fenics/dashboard/studies/complex-geometry/viz/field_obstacle.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">flow-field</strong>
+          <a href="/viva-fenics/dashboard/studies/complex-geometry/viz/flow_field.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the solution field on the obstacle geometry.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Velocity streamlines/quiver threading through the baseline pillar array (porosity~0.68).</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/complex-geometry/viz/field_obstacle.html"
+        <iframe src="/viva-fenics/dashboard/studies/complex-geometry/viz/flow_field.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="field-heatmap-obstacle"
+                loading="lazy" title="flow-field"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">mesh3d</strong>
-          <a href="/viva-fenics/dashboard/studies/complex-geometry/viz/mesh3d.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">velocity-magnitude</strong>
+          <a href="/viva-fenics/dashboard/studies/complex-geometry/viz/velocity_magnitude.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive 3D Plotly view of the imported mesh across the three geometries.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interpolated velocity-magnitude heatmap over the pillar lattice.</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/complex-geometry/viz/mesh3d.html"
+        <iframe src="/viva-fenics/dashboard/studies/complex-geometry/viz/velocity_magnitude.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="mesh3d"
+                loading="lazy" title="velocity-magnitude"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">permeability-vs-porosity</strong>
+          <a href="/viva-fenics/dashboard/studies/complex-geometry/viz/permeability_vs_porosity.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Effective permeability k_eff vs porosity, with a Kozeny-Carman-shaped reference curve.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/complex-geometry/viz/permeability_vs_porosity.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="permeability-vs-porosity"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
@@ -714,10 +736,10 @@ investigation&#39;s other advanced studies build on.
     
     
     
-    <li class="expected-behavior-item" id="bt-mesh-imports-with-positive-cells"
+    <li class="expected-behavior-item" id="bt-mesh-imports-with-tagged-boundaries"
         data-test-kind="behavioral"
         
-        data-pytest-node="mesh-imports-with-positive-cells"
+        data-pytest-node="mesh-imports-with-tagged-boundaries"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -726,22 +748,23 @@ investigation&#39;s other advanced studies build on.
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">mesh-imports-with-positive-cells</strong>
+        <strong style="font-size: 0.9em;">mesh-imports-with-tagged-boundaries</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>complex-geometry-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>porous-lattice-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">n_cells (the imported dolfinx mesh&#39;s local cell count, read directly
-off `domain.topology.index_map(tdim).size_local`, not estimated) for
-EVERY one of the three geometries (obstacle, lshape, annulus) at
-resolution=32 must exceed 20.
+      <div style="margin-top: 6px; font-size: 0.95em;">n_cells (the imported dolfinx mesh&#39;s local cell count) for EVERY one of
+the 4 porosity variants must exceed 20, and every boundary facet group
+(inflow/outflow/walls/pillars) must be non-empty (checked directly in
+tests/test_complex_geometry.py; this run&#39;s floor is a coarse sanity
+check on the same underlying mesh-import path).
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "min_n_cells_across_geometries", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "Observed cell counts at resolution=32 run in the low thousands for all three geometries (see studies/complex-geometry/sims/run.py\u0027s printed summary); 20 is a generous floor that only fails on a genuinely degenerate/empty import, not on any real triangulation density."}, "value": 20}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "min_n_cells_across_variants", "kind": "derived_scalar"}
+pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "Observed cell counts at nx=ny=4, h_pillar=0.015 run 5000-9000 across the porosity sweep (see studies/complex-geometry/sims/run.py\u0027s printed summary); 20 is a generous floor that only fails on a genuinely degenerate/empty import."}, "value": 20}</pre>
       </details>
       
       
@@ -756,10 +779,10 @@ pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "Observe
     
     
     
-    <li class="expected-behavior-item" id="bt-solution-finite-bounded-nontrivial"
+    <li class="expected-behavior-item" id="bt-stokes-flow-divergence-free-and-noslip"
         data-test-kind="behavioral"
         
-        data-pytest-node="solution-finite-bounded-nontrivial"
+        data-pytest-node="stokes-flow-divergence-free-and-noslip"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -768,22 +791,22 @@ pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "Observe
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">solution-finite-bounded-nontrivial</strong>
+        <strong style="font-size: 0.9em;">stokes-flow-divergence-free-and-noslip</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>complex-geometry-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>porous-lattice-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">For every one of the three geometries, the Poisson solution
-(-Laplacian(u)=1, u=0 on the full boundary) must be finite everywhere,
-non-negative everywhere, and reach a max value strictly between 1e-6
-and 1.0.
+      <div style="margin-top: 6px; font-size: 0.95em;">For every one of the 4 porosities, the Stokes solve&#39;s mean |div(u)|
+must stay below 1e-2 (approximately divergence-free) AND the max speed
+over every no-slip boundary dof must stay below 1e-8 (exact no-slip to
+solver precision).
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "min_solution_max_across_geometries", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e", "provenance": {"kind": "theory", "note": "The maximum principle for -Laplacian(u)=const\u003e0 with u=0 on the boundary guarantees a smooth, non-negative, interior-peaked solution on any of these domains; a solution that is all-zero, negative anywhere, or non-finite indicates a broken boundary condition or a corrupted imported mesh, not solver noise."}, "value": 1e-06}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "max_divergence_mean_across_variants", "kind": "derived_scalar"}
+pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "Observed mean|div(u)| at production resolution runs 3e-5-1e-4 across the porosity sweep (a real Taylor-Hood LBB-stable pairing is much closer to exact incompressibility than this investigation\u0027s IPCS processes) -- 1e-2 leaves two orders of magnitude of headroom while still catching a genuinely broken assembly."}, "value": 0.01}</pre>
       </details>
       
       
@@ -798,10 +821,10 @@ pass_if: {"op": "\u003e", "provenance": {"kind": "theory", "note": "The maximum 
     
     
     
-    <li class="expected-behavior-item" id="bt-solution-stays-bounded"
+    <li class="expected-behavior-item" id="bt-noslip-satisfied-on-pillars"
         data-test-kind="behavioral"
         
-        data-pytest-node="solution-stays-bounded"
+        data-pytest-node="noslip-satisfied-on-pillars"
         data-classification="supporting"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #3b82f6; background: #f8fafc; border-radius: 4px;">
@@ -810,21 +833,65 @@ pass_if: {"op": "\u003e", "provenance": {"kind": "theory", "note": "The maximum 
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-supporting">supporting</span>
-        <strong style="font-size: 0.9em;">solution-stays-bounded</strong>
+        <strong style="font-size: 0.9em;">noslip-satisfied-on-pillars</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>complex-geometry-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>porous-lattice-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">The Poisson solution&#39;s max value on every geometry must stay below 1.0
--- no blow-up from a malformed imported mesh (e.g. inverted-orientation
-cells corrupting the stiffness-matrix assembly).
+      <div style="margin-top: 6px; font-size: 0.95em;">Max speed over every no-slip (wall + pillar) boundary dof must stay
+below 1e-8 across all 4 porosities -- confirms the Dirichlet BC landed
+on the real tagged pillar facets, not silently skipped or misapplied to
+the wrong boundary group.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "max_solution_max_across_geometries", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "Observed peak solution values at resolution=32 sit around 0.01-0.04 across all three geometries (see run.py\u0027s printed summary); 1.0 leaves two orders of magnitude of headroom while still catching a genuine assembly/orientation blow-up."}, "value": 1.0}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "max_noslip_speed_across_variants", "kind": "derived_scalar"}
+pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Dirichlet BC dof elimination zeroes these dofs to machine precision by construction; observed max is exactly 0.0 in development runs, a 1e-8 floor leaves comfortable headroom for solver round-off while still catching a genuinely leaked/unapplied BC."}, "value": 1e-08}</pre>
+      </details>
+      
+      
+      
+      
+    </li>
+    
+    
+    
+    
+    
+    
+    
+    
+    <li class="expected-behavior-item" id="bt-permeability-decreases-with-porosity"
+        data-test-kind="behavioral"
+        
+        data-pytest-node="permeability-decreases-with-porosity"
+        data-classification="primary"
+        data-result="pending"
+        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
+      
+        
+      <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+        <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
+        <span class="classification-pill classification-primary">primary</span>
+        <strong style="font-size: 0.9em;">permeability-decreases-with-porosity</strong>
+        
+        <span class="muted" style="font-size:0.78em">requires: <code>porous-lattice-baseline</code></span>
+        
+      </div>
+      <div style="margin-top: 6px; font-size: 0.95em;">The effective permeability k_eff must be finite and strictly positive
+at every porosity, AND must decrease monotonically (every consecutive
+pair, sorted by porosity descending) across the 4-point sweep -- the
+headline Kozeny-Carman-type physical trend this study exists to
+demonstrate.
+</div>
+      
+      
+      <details style="margin-top: 6px; font-size: 0.82em;">
+        <summary class="muted" style="cursor: pointer;">Assertion</summary>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "min_consecutive_k_eff_ratio", "kind": "derived_scalar"}
+pass_if: {"op": "\u003e", "provenance": {"kind": "theory", "note": "Darcy\u0027s law at fixed driving pressure drop: a denser pillar packing leaves less open pore space, so the volume-averaged velocity (and hence k_eff) must fall as porosity falls -- see this study\u0027s expected_behavior for the full argument. The observed 4-point sweep shows a \u003e10x drop in k_eff from the sparsest to the densest lattice (see studies/complex-geometry/sims/run.py\u0027s printed summary for the exact achieved values)."}, "value": 1.0}</pre>
       </details>
       
       
@@ -950,7 +1017,7 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "Observe
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "770113d655809e97c7a865b30c7f50154e935746", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/770113d655809e97c7a865b30c7f50154e935746", "branch": "main", "generated_at": "2026-08-01 02:06 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "complex-geometry";
@@ -1082,7 +1149,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
   var el = document.getElementById("study-configure-run");
   if (!el || !window.ConfigureRun) return;
   
-  var compositeRef = "viva_fenics.composites.complex_geometry.complex_geometry";
+  var compositeRef = "viva_fenics.composites.flow.porous_lattice";
   
   var slug = window._studyName || "complex-geometry";
   ConfigureRun.mount(el, { composite: compositeRef, target: "study", study: slug });

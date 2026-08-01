@@ -14,7 +14,7 @@
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    <span class="study-name" id="study-name" data-slug="moving-boundary" title="moving-boundary">Moving boundary: diffusion on a deforming (ALE) domain</span>
+    <span class="study-name" id="study-name" data-slug="moving-boundary" title="moving-boundary">Peristaltic pumping: traveling-wave wall occlusion ⊕ ALE Navier-Stokes</span>
     
     <span class="phase-pill phase-build" title="Lifecycle: Design → Build → Simulate → Evaluate → Decide">Build</span>
     
@@ -221,30 +221,34 @@
     
     <div class="overview-section">
       <div id="question-text" class="overview-prose" data-editable="true" data-field="question"
-           data-placeholder="+ Add the research question this study asks">Does a real dolfinx diffusion solve, re-assembled and re-solved every
-substep on a mesh whose geometry is mutated in place according to a
-prescribed moving-boundary law (prescribed ALE mesh motion), stay
-numerically well-behaved -- boundary tracking the prescribed law, domain
-measure scaling correctly with the deformation amplitude, field staying
-finite -- when wrapped as a process-bigraph Process?
+           data-placeholder="+ Add the research question this study asks">Does composing a mesh-motion process (a real harmonic-extension ALE
+solve, prescribing a traveling-wave occlusion on a channel&#39;s walls) with
+a flow process (real IPCS incompressible Navier-Stokes, ALE-corrected for
+the moving mesh), coupled ONLY through shared bigraph stores, reproduce
+genuine peristaltic pumping -- a net axial flow rate that is positive
+(in the wave&#39;s direction) and grows with the occlusion amplitude -- from
+a real dolfinx solve, with no term in either process hard-coding the
+other&#39;s physics?
 </div>
       <div id="hypothesis-text" class="overview-prose" data-editable="true" data-field="hypothesis"
-           data-placeholder="(predicted outcome)">`MovingBoundaryProcess` should reproduce the prescribed top-boundary law
-`y_top(t)` to near machine precision (the mesh deformation is an exact
-uniform vertical stretch, not an approximation), the FEM-assembled domain
-area should scale linearly with the oscillation amplitude (a larger
-amplitude produces a proportionally larger swing in domain measure away
-from the base area), and the diffusion field solved on the deforming mesh
-should remain finite and bounded throughout, since no term in the
-backward-Euler diffusion assembly can blow up under a smooth, bounded
-mesh deformation.
+           data-placeholder="(predicted outcome)">A traveling constriction squeezes fluid forward faster than it can
+relax backward (the textbook peristalsis mechanism), so the domain-
+averaged x-velocity, time-averaged after the startup transient, should
+be measurably POSITIVE for a nonzero occlusion amplitude and should
+increase as the occlusion amplitude increases (a larger constriction
+displaces proportionally more fluid per wave period) -- entirely an
+emergent property of the composition (`PeristalticWallProcess`&#39;s
+mesh-motion + `PeristalticFlowProcess`&#39;s ALE-Navier-Stokes), since
+neither process alone computes a flow rate or knows the other exists.
 </div>
-      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the `moving_boundary` composite (a single `MovingBoundaryProcess` --
-real dolfinx diffusion re-solved on a prescribed-ALE deforming mesh) and
-verify (a) `boundary_position` tracks the prescribed oscillation law to
-near machine precision, (b) `domain_measure`&#39;s swing away from the base
-area scales with the oscillation amplitude across an amplitude sweep, and
-(c) the diffusion field stays finite and bounded across the run.
+      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the `peristalsis` composite (`PeristalticWallProcess` ⊕
+`PeristalticFlowProcess`, coupled through `mesh_displacement_y` /
+`mesh_velocity_y` / `wall_time` shared stores -- see
+`viva_fenics/processes/peristalsis.py`&#39;s module docstring) at three
+occlusion amplitudes and verify (a) the baseline&#39;s post-transient,
+time-averaged net flow rate Q (`mean_ux`, the domain-averaged
+x-velocity) is genuinely positive, and (b) Q increases monotonically
+across the amplitude sweep.
 </div>
     </div>
     
@@ -381,10 +385,10 @@ area scales with the oscillation amplitude across an amplitude sweep, and
         
         
         <div><strong>Proceed when:</strong> <span class="muted">No further studies in this investigation currently depend on
-moving-boundary; it is the investigation&#39;s deforming-domain showcase,
-built on top of navier-stokes (the investigation&#39;s other advanced,
-showcase-tier study) rather than directly on the scalar
-diffusion/reaction studies.
+moving-boundary; it is the investigation&#39;s flagship composition
+showpiece (moving-boundary ⊕ Navier-Stokes), built directly on top of
+navier-stokes (the investigation&#39;s other advanced, showcase-tier
+study).
 </span></div>
         
       </div>
@@ -432,7 +436,7 @@ diffusion/reaction studies.
 
       <div class="study-counts-strip">
         <div class="count-cell">
-          <strong>3</strong>
+          <strong>2</strong>
           <span class="count-label">variants</span>
         </div>
         <div class="count-cell">
@@ -471,24 +475,24 @@ diffusion/reaction studies.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.moving_boundary.moving_boundary" data-model-overrides='{"amplitude": 0.3, "dt": 0.01, "mode": "oscillate", "omega": 3.14159, "resolution": 32}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.peristalsis.peristalsis" data-model-overrides='{"H": 2.0, "L": 2.0, "amplitude": 0.3, "dt": 0.01, "nx": 24, "ny": 12, "ramp_time": 0.5, "reynolds": 10.0, "wave_speed": 1.0, "wavelength": 1.0}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong>moving-boundary-baseline</strong>
+        <strong>peristalsis-baseline</strong>
         
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.moving_boundary.moving_boundary</code>
+        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.peristalsis.peristalsis</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
-                onclick="_openCompositeLoom('viva_fenics.composites.moving_boundary.moving_boundary')">🧬 explore &amp; run ↗</button>
+                onclick="_openCompositeLoom('viva_fenics.composites.peristalsis.peristalsis')">🧬 explore &amp; run ↗</button>
         
       </div>
       
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="text" class="baseline-composite-input" data-baseline-name="moving-boundary-baseline"
-               value="viva_fenics.composites.moving_boundary.moving_boundary" placeholder="pkg.composites.name"
+        <input type="text" class="baseline-composite-input" data-baseline-name="peristalsis-baseline"
+               value="viva_fenics.composites.peristalsis.peristalsis" placeholder="pkg.composites.name"
                style="flex:1;min-width:200px;font-family:monospace;font-size:0.82em;padding:3px 6px" />
         <button type="button" class="action-btn baseline-composite-set" style="font-size:0.8em"
-                data-baseline-name="moving-boundary-baseline">Set composite</button>
+                data-baseline-name="peristalsis-baseline">Set composite</button>
       </div>
-      <div class="baseline-composite-status muted" data-baseline-name="moving-boundary-baseline" style="font-size:0.8em;margin-top:2px"></div>
+      <div class="baseline-composite-status muted" data-baseline-name="peristalsis-baseline" style="font-size:0.8em;margin-top:2px"></div>
       
       <div class="model-config-mount" style="margin-top:8px">
         <p class="muted" style="font-size:0.85em;margin:0">Loading configuration…</p></div>
@@ -606,15 +610,30 @@ diffusion/reaction studies.
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">moving-boundary-animation</strong>
-          <a href="/viva-fenics/dashboard/studies/moving-boundary/viz/moving_boundary.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">peristalsis-animation</strong>
+          <a href="/viva-fenics/dashboard/studies/moving-boundary/viz/peristalsis_animation.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly animation of the field on a domain with a prescribed moving boundary.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Speed field animation (reference node positions) with the TRUE deforming wall envelope overlaid, tracking the traveling occlusion wave.</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/moving-boundary/viz/moving_boundary.html"
+        <iframe src="/viva-fenics/dashboard/studies/moving-boundary/viz/peristalsis_animation.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="moving-boundary-animation"
+                loading="lazy" title="peristalsis-animation"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">net-flow-vs-amplitude</strong>
+          <a href="/viva-fenics/dashboard/studies/moving-boundary/viz/net_flow_vs_amplitude.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Net (time-averaged) flow rate Q vs occlusion amplitude -- positive and monotonically increasing, the peristaltic-pumping signature.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/moving-boundary/viz/net_flow_vs_amplitude.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="net-flow-vs-amplitude"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
@@ -699,10 +718,10 @@ diffusion/reaction studies.
     
     
     
-    <li class="expected-behavior-item" id="bt-boundary-follows-prescribed-law"
+    <li class="expected-behavior-item" id="bt-net-flow-is-positive"
         data-test-kind="behavioral"
         
-        data-pytest-node="boundary-follows-prescribed-law"
+        data-pytest-node="net-flow-is-positive"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -711,20 +730,20 @@ diffusion/reaction studies.
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">boundary-follows-prescribed-law</strong>
+        <strong style="font-size: 0.9em;">net-flow-is-positive</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>moving-boundary-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>peristalsis-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">abs(boundary_position(T) - (1 + amplitude*sin(omega*T))) for the
-baseline run must be below 1e-4 at the final recorded time T.
+      <div style="margin-top: 6px; font-size: 0.95em;">time_average(mean_ux, t in [2.0, 4.0]) for the baseline run must
+exceed 0.02.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "boundary_law_abs_error", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "The mesh motion is deform_mesh()\u0027s exact uniform stretch by y_top(t); the only departure from exact equality is floating-point roundoff (observed ~1e-15 during development), so 1e-4 leaves enormous headroom while still catching a genuinely broken mesh motion (e.g. a stale/undeformed mesh)."}, "value": 0.0001}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "net_flow_rate_baseline", "kind": "derived_scalar"}
+pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "0.02 sits well below the achieved baseline Q~=0.19-0.2 (production run, this solver\u0027s feasible-wall-time mesh/dt), leaving generous headroom while still requiring genuine, clearly-nonzero pumping."}, "value": 0.02}</pre>
       </details>
       
       
@@ -739,10 +758,10 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "The mesh mot
     
     
     
-    <li class="expected-behavior-item" id="bt-domain-measure-scales-with-amplitude"
+    <li class="expected-behavior-item" id="bt-flow-grows-with-amplitude"
         data-test-kind="behavioral"
         
-        data-pytest-node="domain-measure-scales-with-amplitude"
+        data-pytest-node="flow-grows-with-amplitude"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -751,21 +770,20 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "The mesh mot
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">domain-measure-scales-with-amplitude</strong>
+        <strong style="font-size: 0.9em;">flow-grows-with-amplitude</strong>
         
         <span class="muted" style="font-size:0.78em">requires: <code>amplitude-low</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">max(|domain_measure - 1.0|) over the amplitude=0.5 variant&#39;s run must
-be at least 3x the same quantity for the amplitude=0.1 variant, over
-the same duration/wiring.
+      <div style="margin-top: 6px; font-size: 0.95em;">Q(amplitude=0.2) &lt; Q(amplitude=0.3) &lt; Q(amplitude=0.4), each
+time-averaged over t in [2.0, 4.0] of its own 4-period run.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "swing_ratio", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "domain_measure = y_top(t) exactly, so the analytic swing ratio for a 5x amplitude ratio is exactly 5.0; 3.0 leaves headroom for transient/sampling effects (peak not landing exactly at the same sampled tick in both runs) while still catching a broken or amplitude-insensitive mesh motion."}, "value": 3.0}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "net_flow_rate_monotonic", "kind": "derived_scalar"}
+pass_if: {"op": "==", "provenance": {"kind": "theory", "note": "A larger occlusion amplitude displaces proportionally more fluid per wave period; the monotonic ordering is the qualitative peristaltic-transport signature this study validates (an exact pumping-rate formula is not required -- see the study\u0027s description)."}, "value": true}</pre>
       </details>
       
       
@@ -780,10 +798,10 @@ pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "domain
     
     
     
-    <li class="expected-behavior-item" id="bt-field-stays-finite"
+    <li class="expected-behavior-item" id="bt-wall-motion-genuinely-deforms-domain"
         data-test-kind="behavioral"
         
-        data-pytest-node="field-stays-finite"
+        data-pytest-node="wall-motion-genuinely-deforms-domain"
         data-classification="supporting"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #3b82f6; background: #f8fafc; border-radius: 4px;">
@@ -792,20 +810,21 @@ pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "domain
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-supporting">supporting</span>
-        <strong style="font-size: 0.9em;">field-stays-finite</strong>
+        <strong style="font-size: 0.9em;">wall-motion-genuinely-deforms-domain</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>moving-boundary-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>peristalsis-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">max(|field|) across every recorded frame of the baseline run must stay
-below 5.0 -- no blow-up from re-solving on the deforming mesh.
+      <div style="margin-top: 6px; font-size: 0.95em;">min(domain_area) over the baseline run must fall below 0.92*L*H
+(i.e. at least 8% below the undeformed area; the baseline&#39;s achieved
+value is a physically-exact 0.85*L*H -- see the provenance note).
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "max_abs_field", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Backward-Euler diffusion of a bounded gaussian-bump initial condition (peak amplitude 1.0) with no source term cannot exceed its initial peak in the continuous limit; 5.0 leaves generous headroom for discretization overshoot on the deforming mesh while still catching a genuine numerical blow-up."}, "value": 5.0}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "min_domain_area_fraction", "kind": "derived_scalar"}
+pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "domain_area is a real FEM-assembled integral over the current mesh; since L spans an integer number of full wavelengths, domain_area(t) is analytically constant at L*(H-amplitude) = 0.85*L*H for the baseline\u0027s amplitude=0.3 (the traveling wave\u0027s spatial cos-term integrates to exactly 0 over a whole wavelength). 0.92 leaves comfortable headroom below that exact, achieved value while still failing a near-1.0 (undeformed/un-coupled) reading, so a near-undeformed domain_area would indicate the mesh-motion -\u003e flow coupling is not actually wired."}, "value": 0.92}</pre>
       </details>
       
       
@@ -931,7 +950,7 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "Backward-Eul
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "770113d655809e97c7a865b30c7f50154e935746", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/770113d655809e97c7a865b30c7f50154e935746", "branch": "main", "generated_at": "2026-08-01 02:06 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "moving-boundary";
@@ -1063,7 +1082,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
   var el = document.getElementById("study-configure-run");
   if (!el || !window.ConfigureRun) return;
   
-  var compositeRef = "viva_fenics.composites.moving_boundary.moving_boundary";
+  var compositeRef = "viva_fenics.composites.peristalsis.peristalsis";
   
   var slug = window._studyName || "moving-boundary";
   ConfigureRun.mount(el, { composite: compositeRef, target: "study", study: slug });

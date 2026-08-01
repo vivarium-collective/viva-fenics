@@ -17,23 +17,34 @@ if _os.environ.get("PYTHONUTF8") != "1":
     _os.execv(_sys.executable, [_sys.executable, *_sys.argv])
 
 
-# # FEniCS showcase: FEM solvers as composable pbg processes
+# # FEniCS showcase: seven real dolfinx studies as composable pbg processes
 #
 # _Investigation `fenics-showcase` — coder reproduction notebook._
 #
-# **Question.** Can modern FEniCSx be wrapped as composable pbg processes that reproduce
-# canonical FEM results and enable bigraph coupling?
+# **Question.** Can real FEniCSx (dolfinx) solvers, wrapped as ordinary process-bigraph
+# Steps/Processes, both PASS rigorous numerical-verification checks and
+# drive seven genuinely different, showcase-tier physics problems --
+# spanning high-order accuracy, singular geometry, morphogen patterning,
+# Turing instability, bluff-body vortex shedding, porous-media flow, and
+# moving-boundary fluid-structure coupling -- using the same underlying
+# bridge throughout?
 #
 # A showcase investigation proving that a real external FEM solver
-# (FEniCSx/dolfinx, not a mock or reimplementation) can be wrapped as
-# process-bigraph Steps/Processes and composed like any other pbg model.
-# Two validation studies (`poisson-validation`, `mesh-convergence`) confirm
-# numerical fidelity against known analytic/theoretical results; two
-# dynamics studies (`transient-diffusion`, `reaction-diffusion`) extend the
-# bridge to time-stepping and cross-process coupling. Three ADVANCED
-# studies (`navier-stokes`, `moving-boundary`, `complex-geometry`) push
-# the same bridge into fluid dynamics, deforming domains, and
-# gmsh-generated non-rectangular geometry.
+# (FEniCSx/dolfinx, not a mock or reimplementation), wrapped as ordinary
+# process-bigraph Steps/Processes, both passes rigorous numerical-
+# verification checks and drives seven substantially different
+# showcase-tier physics problems using the same bridge throughout. Two
+# validation studies (`poisson-validation`, `mesh-convergence`) confirm
+# numerical fidelity -- optimal multi-order L2 convergence and adaptive
+# recovery of an optimal rate on a corner singularity. Two dynamics
+# studies (`transient-diffusion`, `reaction-diffusion`) extend the bridge
+# to time-stepping and cross-process store-wiring composability, the
+# latter producing a genuine Turing instability from three
+# independently-authored processes. Three ADVANCED studies
+# (`navier-stokes`, `complex-geometry`, `moving-boundary`) push the same
+# bridge into incompressible Navier-Stokes vortex shedding, a real
+# porous-media permeability result, and ALE fluid-structure-coupled
+# peristaltic pumping.
 #
 # ---
 #
@@ -134,18 +145,30 @@ def describe_spec(spec):
 
 # ## Study: `poisson-validation`
 #
-# **Question.** Does the dolfinx-backed `PoissonSolverStep` reproduce the exact solution of
-# a manufactured steady Poisson problem to numerical precision?
+# **Question.** Do P1, P2, and P3 Lagrange elements each achieve their OWN theoretically
+# optimal L2 convergence rate (degree+1: 2, 3, 4 respectively) when solving
+# the dolfinx-backed `PoissonSolverStep` on a smooth (C-infinity)
+# manufactured solution, or does any element order under- or over-perform
+# its textbook rate?
 #
-# **Objective.** Solve the steady Poisson equation -div(grad(u)) = f on the unit square with
-# a manufactured (known-exact) quadratic solution, and verify the FEM
-# solution matches the exact solution to within numerical tolerance. This is
-# the correctness baseline every other study in the investigation builds on.
+# **Objective.** For degree in {1, 2, 3} and a resolution sweep (mesh cells per side: 8,
+# 16, 32, 64), solve -div(grad(u)) = f on the unit square with f and the
+# Dirichlet BC derived from u_exact = sin(pi*x)*sin(pi*y), compute each
+# point's L2 error against the true exact solution, and fit the log-log
+# convergence rate (slope of log error vs log h) per degree. Confirm P1's
+# rate lands near 2.0, P2's near 3.0, and P3's near 4.0 -- a rigorous
+# multi-order verification, not a single "error is small" checkbox.
 #
-# **Hypothesis.** Degree-2 Lagrange elements exactly represent the quadratic manufactured
-# solution used here (Galerkin orthogonality), so the L2 error against the
-# analytic solution should sit at floating-point round-off, not merely
-# "small".
+# **Hypothesis.** u_exact = sin(pi*x)*sin(pi*y) is smooth but NOT polynomial, so unlike a
+# quadratic manufactured solution (exactly representable by degree>=2
+# elements, collapsing their error to round-off) no fixed-degree Lagrange
+# space represents it exactly. Standard a priori FEM theory predicts every
+# degree-p Lagrange element converges in L2 at rate p+1 on a sufficiently
+# smooth problem: P1 -> O(h^2), P2 -> O(h^3), P3 -> O(h^4). A genuine
+# dolfinx solve, with the L2 error measured against the true symbolic exact
+# solution at elevated quadrature (not an FE interpolant of it, which would
+# understate exactly the higher-order error this check needs to see),
+# should reproduce all three optimal rates cleanly.
 
 # ### Parameters
 
@@ -165,7 +188,7 @@ print("No recorded runs for this study; nothing to reproduce.")
 #
 # _Results are shown by the figures below, produced by the run above._
 
-# **solution-heatmap**
+# **convergence-multi-order**
 
 def _save_viz(study, slug, html):
     d = REPO / 'reports/notebooks/figures' / study
@@ -174,6 +197,11 @@ def _save_viz(study, slug, html):
     out.write_text(html, encoding='utf-8')
     print('  wrote', out)
 
+
+# convergence-multi-order
+_save_viz('poisson-validation', 'convergence-multi-order', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **solution-heatmap**
 
 # solution-heatmap
 _save_viz('poisson-validation', 'solution-heatmap', _render_one('', {}, RUNS_DB, STUDY_YAML))
@@ -184,22 +212,37 @@ _save_viz('poisson-validation', 'solution-heatmap', _render_one('', {}, RUNS_DB,
 #
 # | test | measures | passes if |
 # | --- | --- | --- |
-# | l2-error-within-tolerance | kind=derived_scalar field=l2_error | op < value 1e-10 provenance {'kind': 'theory', 'note': 'A quadratic manufactured solution lies exactly in the degree-2 Lagrange trial space, so the discretization error is zero up to solver/quadrature round-off; 1e-10 is a generous ceiling above that floor (observed ~2.8e-13).'} |
+# | p1-achieves-optimal-rate | kind=derived_scalar field=p1_rate | op range low 1.75 high 2.25 provenance {'kind': 'theory', 'note': 'A priori FEM theory: degree-p Lagrange elements converge in L2 at O(h^(p+1)) on a sufficiently smooth problem; p=1 -> rate 2.0. 0.25 is a generous margin around that theoretical value, not a fitted threshold; the achieved production rate is 1.998.'} |
+# | p2-achieves-optimal-rate | kind=derived_scalar field=p2_rate | op range low 2.75 high 3.25 provenance {'kind': 'theory', 'note': 'p=2 -> theoretical L2 rate 3.0. 0.25 margin around theory; achieved production rate is 3.000.'} |
+# | p3-achieves-optimal-rate | kind=derived_scalar field=p3_rate | op range low 3.75 high 4.25 provenance {'kind': 'theory', 'note': "p=3 -> theoretical L2 rate 4.0, the most demanding of the three orders (requires elevated quadrature so the check isn't itself quadrature-limited -- see fem.l2_error_exact). 0.25 margin around theory; achieved production rate is 4.000."} |
 
 # ## Study: `mesh-convergence`
 #
-# **Question.** Does the `PoissonSolverStep` wrapper deliver the theoretical O(h^2) mesh
-# convergence rate for P1 Lagrange elements, or does the wrapping introduce
-# an artifact that masks/inflates the true discretization error?
+# **Question.** On the classic L-shaped-domain re-entrant-corner Laplace singularity --
+# where the exact solution's gradient blows up at the corner and UNIFORM
+# refinement is provably capped at a suboptimal convergence rate -- does a
+# real residual-based a posteriori error estimator, driving Doerfler-marked
+# ADAPTIVE refinement, concentrate elements at the corner and recover
+# near-optimal convergence?
 #
-# **Objective.** Sweep the `mesh_convergence` composite's `resolution` parameter (8, 16, 32)
-# at fixed polynomial degree 1, fit the L2-error-vs-mesh-size slope on a
-# log-log plot, and confirm the fitted rate matches the theoretical
-# O(h^(degree+1)) convergence order.
+# **Objective.** Run a uniform-refinement sequence and a residual-based adaptive (AMR)
+# sequence from the same coarse initial L-shaped mesh, fit the energy-norm-
+# error-vs-DOFs log-log slope for each, and confirm (a) the adaptive slope
+# is substantially steeper (closer to the optimal -1/2) than the uniform
+# slope (capped near -1/3), and (b) the adaptive mesh's cell density near
+# the re-entrant corner, relative to the far field, grows dramatically
+# relative to the initial mesh -- direct geometric evidence the estimator
+# is doing its job, not just producing a better number by coincidence.
 #
-# **Hypothesis.** On a superconvergence-resistant (crossed-diagonal) unit-square mesh, the
-# L2 error of a P1 (degree=1) solve should scale as O(h^2) across a
-# resolution sweep, giving an observed log-log slope near 2.
+# **Hypothesis.** The L-shaped domain's re-entrant corner (interior angle 3*pi/2) has exact
+# harmonic solution u = r^(2/3)*sin(2*theta/3), whose H^(5/3-eps) regularity
+# caps P1 UNIFORM refinement's energy-norm convergence at O(dofs^-1/3)
+# instead of the usual O(dofs^-1/2). A residual-based edge-jump error
+# estimator should produce indicators that spike sharply at the corner
+# (where u_h's piecewise-linear gradient most disagrees with its
+# neighbors), so Doerfler (bulk-chasing) marking on those indicators should
+# concentrate new elements there and recover close to the optimal
+# O(dofs^-1/2) rate despite the singularity.
 
 # ### Parameters
 
@@ -219,10 +262,20 @@ print("No recorded runs for this study; nothing to reproduce.")
 #
 # _Results are shown by the figures below, produced by the run above._
 
-# **convergence-loglog**
+# **mesh-refinement-animation**
 
-# convergence-loglog
-_save_viz('mesh-convergence', 'convergence-loglog', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# mesh-refinement-animation
+_save_viz('mesh-convergence', 'mesh-refinement-animation', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **convergence-comparison**
+
+# convergence-comparison
+_save_viz('mesh-convergence', 'convergence-comparison', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **final-solution-heatmap**
+
+# final-solution-heatmap
+_save_viz('mesh-convergence', 'final-solution-heatmap', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
 # ### Acceptance criteria
 #
@@ -230,24 +283,44 @@ _save_viz('mesh-convergence', 'convergence-loglog', _render_one('', {}, RUNS_DB,
 #
 # | test | measures | passes if |
 # | --- | --- | --- |
-# | convergence-rate-matches-order | kind=derived_scalar field=convergence_rate | op >= value 1.7 provenance {'kind': 'theory', 'note': 'Standard FEM a priori error theory gives O(h^(k+1)) for degree-k Lagrange elements in the L2 norm; k=1 implies rate=2. 1.7 is a calibration margin below the theoretical value, not a fitted threshold.'} |
+# | adaptive-beats-uniform-rate | kind=derived_scalar field=adaptive_rate | op <= value -0.45 provenance {'kind': 'theory', 'note': "Standard a priori FEM theory for a corner singularity of exponent 2/3 caps P1 uniform refinement's energy-norm rate near O(dofs^-1/3) (theoretical -0.333); optimally graded/adaptive refinement recovers close to the smooth-solution rate O(dofs^-1/2). -0.45 is a calibration margin above (i.e. less steep than) the theoretical -0.5, not a fitted threshold; the achieved production rate is -0.528."} |
+# | refinement-concentrates-at-corner | kind=derived_scalar field=corner_density_ratio | op >= value 15.0 provenance {'kind': 'calibration', 'note': 'The initial (near-uniform, pre-refinement) mesh\'s own near/far density ratio is 0.52 -- the natural "no bias" baseline for this domain/radii choice. The achieved production adaptive mesh\'s ratio is 29.17 (55.8x growth). 15.0 sits with large headroom below that achieved value while still failing a scheme that spread refinement uniformly (which would keep the ratio near the initial ~0.5).'} |
 
 # ## Study: `transient-diffusion`
 #
-# **Question.** Does a time-stepped `DiffusionProcess` (backward-Euler, dolfinx-backed)
-# conserve mass under a no-flux boundary while smoothing/decaying an initial
-# field, when driven through process-bigraph's own Composite tick loop
-# (not called directly)?
+# **Question.** Do two independently-authored processes -- ``DiffusionProcess`` (extended
+# with a real Dirichlet source boundary c=c0 at x=0) and
+# ``LinearDegradationProcess`` (the pure-numpy rate ``-k*c``), coupled ONLY
+# through shared bigraph stores -- produce a genuine exponential morphogen
+# gradient c(x) = c0*exp(-x/lambda) at steady state, with decay length
+# lambda = sqrt(D/k) matching the classic Source-Diffusion-Degradation (SDD)
+# analytic prediction, when driven through process-bigraph's own Composite
+# tick loop? And do Wolpert "French flag" positional-information thresholds
+# applied to that gradient partition the domain into 3 fate regions whose
+# boundaries shift predictably as lambda shrinks?
 #
-# **Objective.** Run the `transient_diffusion` composite for several ticks and verify (a)
-# the field's peak decays as diffusion spreads the initial gaussian bump and
-# (b) the FEM-integral mass stays conserved (no-flux boundary), exercising
-# the additive-delta store convention through a real Composite.run(), not
-# just DiffusionProcess.update() in isolation.
+# **Objective.** Run the ``morphogen_gradient`` composite to steady state across THREE
+# decay-length regimes (D fixed, k swept: 1.0/2.0/4.0, giving
+# lambda=0.316/0.224/0.158) and confirm (a) each regime's steady profile is
+# genuinely exponential -- a fitted decay length within 10% of the analytic
+# lambda=sqrt(D/k), not just a qualitatively decreasing field -- (b) fields
+# stay bounded in [0, c0] (no accumulate-vs-overwrite blow-up, no unphysical
+# negative concentration), and (c) French-flag threshold crossings
+# (c=0.5*c0, c=0.1*c0) land within 10% of their analytic x-positions AND
+# shift monotonically inward as k increases -- demonstrating lambda's
+# control over the positional-information map is a real, tunable property
+# of the composed system, not a fixed artifact of one parameter set.
 #
-# **Hypothesis.** With no Dirichlet boundary condition (natural Neumann / zero-flux), the
-# FEM integral of the field should stay flat tick over tick while the
-# gaussian bump's peak monotonically decays as it spreads.
+# **Hypothesis.** Neither process implements SDD itself: DiffusionProcess only knows how to
+# solve backward-Euler diffusion with an optional fixed-value boundary, and
+# LinearDegradationProcess only knows how to read a field and write back
+# ``-k*c``. If the shared-store wiring genuinely couples them, a field
+# seeded at zero should build up from the source boundary into a steady
+# gradient whose SHAPE is exponential (a straight line on a log-linear plot)
+# and whose fitted decay length matches lambda=sqrt(D/k) -- not just "some
+# decreasing curve" -- and sweeping k at fixed D should shrink that decay
+# length in the analytically predicted sqrt(D/k) proportion, moving the
+# French-flag threshold crossings inward in lockstep.
 
 # ### Parameters
 
@@ -267,10 +340,30 @@ print("No recorded runs for this study; nothing to reproduce.")
 #
 # _Results are shown by the figures below, produced by the run above._
 
-# **field-animation**
+# **morphogen-animation**
 
-# field-animation
-_save_viz('transient-diffusion', 'field-animation', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# morphogen-animation
+_save_viz('transient-diffusion', 'morphogen-animation', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **morphogen-profile-fit**
+
+# morphogen-profile-fit
+_save_viz('transient-diffusion', 'morphogen-profile-fit', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **morphogen-french-flag-baseline**
+
+# morphogen-french-flag-baseline
+_save_viz('transient-diffusion', 'morphogen-french-flag-baseline', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **morphogen-french-flag-short**
+
+# morphogen-french-flag-short
+_save_viz('transient-diffusion', 'morphogen-french-flag-short', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **morphogen-french-flag-shorter**
+
+# morphogen-french-flag-shorter
+_save_viz('transient-diffusion', 'morphogen-french-flag-shorter', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
 # ### Acceptance criteria
 #
@@ -278,31 +371,40 @@ _save_viz('transient-diffusion', 'field-animation', _render_one('', {}, RUNS_DB,
 #
 # | test | measures | passes if |
 # | --- | --- | --- |
-# | mass-conserved | kind=derived_scalar field=mass_drift_fraction | op < value 0.05 provenance {'kind': 'theory', 'note': 'Zero-flux (natural Neumann) boundary conditions conserve the domain integral exactly in the continuous problem; 5% is a numerical-noise margin for the discrete backward-Euler solve.'} |
-# | peak-decays | kind=derived_scalar field=peak_ratio | op < value 1.0 |
+# | exponential-gradient | kind=derived_scalar field=lambda_rel_err_max | op < value 0.1 provenance {'kind': 'calibration', 'note': 'The committed production run (resolution=64, 800 ticks/regime) achieved max rel_err=1.63% (baseline k=1.0; short-range/shorter- range regimes were 0.23%/0.01%). 10% leaves >6x headroom below that while still catching a genuinely disconnected source-boundary or degradation term (which would produce a non-exponential or wrong-slope profile, not a small numerical discrepancy).'} |
+# | fields-bounded-positive | kind=derived_scalar field=fields_bounded_positive | op == value True provenance {'kind': 'theory', 'note': "A degrading, boundary-sourced field with no other input can never physically exceed its boundary value c0 or go negative; this is also the field-range guard against the accumulate-vs-overwrite regression class (stores.source composing additively instead of being overwritten each tick), which would blow the field well past this band -- see this study's report for the achieved c_range=[0.0036, 1.0000] (shorter-range) through [0.0845, 1.0000] (baseline)."} |
+# | french-flag-thresholds | kind=derived_scalar field=boundary_shift_baseline_minus_shorter | op >= value 0.05 provenance {'kind': 'calibration', 'note': 'The committed production run achieved x_high rel_err <=0.8% across all 3 regimes and a baseline-minus-shorter-range x_high shift of 0.111 (0.221 -> 0.110), with x_low shifting 0.811 -> 0.364 over the same sweep. 0.05 leaves >2x headroom below the achieved shift while still catching a "lambda has no real effect" regression.'} |
 
 # ## Study: `reaction-diffusion`
 #
-# **Question.** Do two independently-authored processes -- `DiffusionProcess` (no
-# knowledge of reactions) and `LogisticReactionProcess` (no knowledge of
-# FEM/diffusion) -- produce genuine Fisher-KPP reaction-diffusion dynamics
-# when wired to the same bigraph stores, with neither process calling into
-# the other?
+# **Question.** Do three independently-authored processes -- TWO ``DiffusionProcess``
+# instances (one per species, U at Du and V at Dv=Du/2, each with no
+# knowledge of reactions) and ONE ``GrayScottReactionProcess`` (no knowledge
+# of FEM/diffusion) -- produce a genuine 2D Turing instability when wired to
+# the same bigraph stores: does a near-uniform field spontaneously
+# self-organize into spots/stripes/labyrinth patterns, with none of the
+# three processes calling into either of the others?
 #
-# **Objective.** Run the `reaction_diffusion` composite (DiffusionProcess ⊕
-# LogisticReactionProcess) and confirm (a) mass grows far faster than a
-# near-zero-reaction control under identical wiring/duration -- isolating
-# the reaction term's causal contribution from solver noise -- and (b) the
-# field stays bounded near the logistic carrying capacity K rather than
-# blowing up, which would indicate the `source` store were composing
-# additively instead of being overwritten each tick.
+# **Objective.** Run the ``turing_patterns`` composite (2x DiffusionProcess ⊕
+# GrayScottReactionProcess) across three Gray-Scott parameter regimes and
+# confirm (a) the baseline regime's V field grows substantially more
+# spatially heterogeneous over the run (pattern EMERGES from a near-uniform
+# start), (b) the resulting pattern is bounded and structurally
+# non-trivial -- a finite fraction of the domain organizes into pattern
+# features, not the whole domain and not none of it -- and (c) different
+# (F, k) regimes produce measurably different pattern morphology (coverage
+# fraction), demonstrating the composed system is a genuine, tunable Turing
+# system, not a fixed numerical artifact.
 #
 # **Hypothesis.** Coupling is entirely a property of the document wiring (shared
-# `stores.solution` / `stores.source` paths), not of either process's
-# implementation: with the reaction term active (r=2.0), the field's total
-# mass should grow dramatically faster than a near-zero-reaction control
-# (r=1e-9, identical wiring) run for the same duration, while logistic
-# saturation keeps the field bounded near the carrying capacity K.
+# ``stores.u`` / ``stores.v`` / ``stores.source_u`` / ``stores.source_v``
+# paths), not of any one process's implementation: starting from U~1, V~0
+# everywhere plus a small seeded perturbation, the differential diffusion
+# (Du > Dv) between the two DiffusionProcess instances, combined with the
+# GrayScottReactionProcess's nonlinear feed/kill kinetics, should amplify
+# the perturbation into a spatially heterogeneous, bounded pattern -- not
+# decay back to uniformity, and not blow up -- and different (F, k) kinetic
+# parameters should produce visibly different pattern morphologies.
 
 # ### Parameters
 
@@ -322,10 +424,25 @@ print("No recorded runs for this study; nothing to reproduce.")
 #
 # _Results are shown by the figures below, produced by the run above._
 
-# **wavefront-animation**
+# **turing-pattern-animation**
 
-# wavefront-animation
-_save_viz('reaction-diffusion', 'wavefront-animation', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# turing-pattern-animation
+_save_viz('reaction-diffusion', 'turing-pattern-animation', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **turing-pattern-baseline-final**
+
+# turing-pattern-baseline-final
+_save_viz('reaction-diffusion', 'turing-pattern-baseline-final', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **turing-pattern-labyrinth-final**
+
+# turing-pattern-labyrinth-final
+_save_viz('reaction-diffusion', 'turing-pattern-labyrinth-final', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **turing-pattern-stripes-final**
+
+# turing-pattern-stripes-final
+_save_viz('reaction-diffusion', 'turing-pattern-stripes-final', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
 # ### Acceptance criteria
 #
@@ -333,34 +450,40 @@ _save_viz('reaction-diffusion', 'wavefront-animation', _render_one('', {}, RUNS_
 #
 # | test | measures | passes if |
 # | --- | --- | --- |
-# | mass-grows-via-coupling | kind=derived_scalar field=growth_ratio | op >= value 5.0 provenance {'kind': 'calibration', 'note': '5x is a clear-separation band between genuine reaction-driven growth and residual solver/quadrature noise, calibrated against the r~=0 control (observed ratio ~2.6e9x at r=2.0 vs r=1e-9, D=0.05, resolution=24, run_time=0.5).'} |
-# | field-bounded-by-k | kind=derived_scalar field=max_field | op < value 1.2 provenance {'kind': 'theory', 'note': 'Logistic saturation caps u at K=1.0 in the continuous limit regardless of run length; 1.2 leaves headroom for discretization overshoot while still catching an accumulate-vs-overwrite regression, which blows well past this bound.'} |
+# | pattern-emerges | kind=derived_scalar field=growth_ratio | op >= value 5.0 provenance {'kind': 'calibration', 'note': 'The committed production run (resolution=96, 6000 ticks, dt=1.0) achieved growth=10.5x (var(V) 0.00111 -> 0.01169); 5.0 leaves ~2.1x headroom below that while still catching a "reaction never actually coupled in" regression (which produces order-1 growth from quadrature noise alone, per the analogous check in ``reaction_diffusion``\'s Fisher-KPP study).'} |
+# | pattern-structured-not-blowup | kind=derived_scalar field=coverage_fraction | op in_range low 0.1 high 0.7 provenance {'kind': 'calibration', 'note': 'The committed production run\'s baseline achieved coverage=0.483 (V in [0.004, 0.367], comfortably bounded); [0.1, 0.7] brackets that with headroom on both sides while still catching "pattern never really emerged" (near 0) or "whole domain saturated/blew up" (near 1). The field-bound half of this check mirrors the FAST unit tests\' (-0.5, 1.5) band, itself the accumulate-vs-overwrite regression guard (see ``tests/test_turing_patterns.py``).'} |
+# | regimes-differ | kind=derived_scalar field=coverage_spread | op >= value 0.1 provenance {'kind': 'calibration', 'note': 'The committed production run achieved coverage 0.483 (baseline) / 0.290 (labyrinth) / 0.148 (stripes) -- a spread of 0.336. 0.1 leaves ~3.4x headroom below that while still catching a "regimes don\'t actually differ" regression. Coverage is partly confounded by the variants\' smaller step budget/coarser mesh (an explicit, disclosed wall-time tradeoff -- see the study report); the labyrinth regime\'s connected-component count (9, vs 1 for the other two regimes) is a second, less-confounded topological signal of the same claim, not gated on here only because it isn\'t defined identically enough across regimes for a clean numeric threshold.'} |
 
 # ## Study: `navier-stokes`
 #
 # **Question.** Does a real dolfinx incompressible Navier-Stokes solve -- Taylor-Hood-ish
-# P2/P1 velocity/pressure, classic IPCS (Incremental Pressure Correction
-# Scheme) operator splitting -- reproduce the textbook lid-driven-cavity
-# flow (a non-trivial, approximately divergence-free, quasi-steady
-# recirculating flow pinned near the lid velocity) when wrapped as a
-# process-bigraph Process, and does the scheme stay numerically stable
-# across a moderate Reynolds-number sweep?
+# P2/P1 velocity/pressure, classic IPCS operator splitting, on a
+# gmsh-generated channel-with-cylinder mesh -- reproduce the DFG 2D-2
+# benchmark's von Karman vortex street: periodic, self-sustaining vortex
+# shedding off an off-center cylinder, with drag/lift coefficients and a
+# Strouhal number in the neighborhood of the published reference values?
 #
-# **Objective.** Run the `navier_stokes` composite (lid-driven cavity on the unit square,
-# P2 velocity / P1 pressure, IPCS splitting) to quasi-steady state and
-# verify (a) the flow is non-trivial and bounded near the lid velocity, (b)
-# the velocity field is approximately divergence-free, and (c) the same
-# scheme stays stable (finite, non-blown-up) across a Reynolds sweep
-# (100, 400, 1000).
+# **Objective.** Run the `vortex_street` composite (real dolfinx IPCS on a gmsh-generated,
+# cylinder-refined channel mesh) long enough to pass through the impulsive-
+# start transient into established periodic shedding, and verify (a) the
+# lift coefficient genuinely oscillates (not just noisy/flat), (b) the mean
+# drag coefficient sits in the neighborhood of the DFG 2D-2 benchmark's
+# Cd_max~=3.22-3.24, and (c) the shedding frequency's Strouhal number sits
+# in the neighborhood of the benchmark's St~=0.30.
 #
-# **Hypothesis.** `NavierStokesProcess` should converge, within a fraction of a second of
-# simulated time, to a quasi-steady cavity flow whose peak speed sits near
-# the prescribed lid velocity (the moving-lid Dirichlet BC pins it there)
-# and whose velocity field is approximately divergence-free (small, not
-# exactly zero -- IPCS is only an approximate projection). The same IPCS
-# scheme, unmodified, should remain stable (no blow-up) from Re=100 up
-# through Re=1000 at this mesh/timestep, since diffusion is treated
-# implicitly (Crank-Nicolson) even though convection is explicit.
+# **Hypothesis.** At Re=100 with the cylinder offset 0.005 above the channel centerline (the
+# DFG 2D-2 geometry), the wake behind the cylinder is linearly unstable: an
+# impulsively-started, initially near-symmetric flow should grow a small
+# asymmetric perturbation (seeded by the geometric offset and numerical
+# round-off) into a fully periodic, alternating vortex street, visible
+# directly as an oscillating lift coefficient (mean ~0, non-zero amplitude)
+# and an oscillating drag coefficient (positive mean, smaller-amplitude
+# ripple at twice the shedding frequency) once the flow leaves the startup
+# transient. The oscillation frequency, non-dimensionalized as a Strouhal
+# number St = f*D/U, should land in the neighborhood of the DFG reference
+# ~0.30 even if this solver's mesh/dt (chosen for feasible wall-time, not
+# full DFG-grade accuracy) don't reproduce the reference Cd_max/Cl_max to
+# the last decimal.
 
 # ### Parameters
 
@@ -380,74 +503,25 @@ print("No recorded runs for this study; nothing to reproduce.")
 #
 # _Results are shown by the figures below, produced by the run above._
 
-# **cavity-flow-streamlines**
+# **vortex-street-vorticity**
 
-# cavity-flow-streamlines
-_save_viz('navier-stokes', 'cavity-flow-streamlines', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# vortex-street-vorticity
+_save_viz('navier-stokes', 'vortex-street-vorticity', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
-# **cavity-pressure-heatmap**
+# **drag-lift-timeseries**
 
-# cavity-pressure-heatmap
-_save_viz('navier-stokes', 'cavity-pressure-heatmap', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# drag-lift-timeseries
+_save_viz('navier-stokes', 'drag-lift-timeseries', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
-# ### Acceptance criteria
-#
-# _Pre-registered checks (criteria/thresholds only — run the cells above to evaluate them)._
-#
-# | test | measures | passes if |
-# | --- | --- | --- |
-# | reaches-quasi-steady | kind=derived_scalar field=quasi_steady_rel_change | op < value 0.05 provenance {'kind': 'calibration', 'note': '5% is a generous convergence band above the observed residual change (~1e-3 or smaller) once the cavity flow has settled, calibrated during development at resolution=24, dt=0.01.'} |
-# | approximately-divergence-free | kind=derived_scalar field=mean_abs_divergence | op < value 0.05 provenance {'kind': 'theory', 'note': "IPCS operator splitting introduces an O(dt) divergence residual (plus a local O(h) artifact at the lid's two discontinuous-BC corners) that is not exactly zero but should be small and shrink under refinement; 0.05 is well above the ~0.003 observed at this resolution during development."} |
-# | stable-across-reynolds-sweep | kind=derived_scalar field=max_speed_across_sweep | op < value 2.0 provenance {'kind': 'calibration', 'note': 'The lid BC directly prescribes the max speed at u=lid_velocity; 2x leaves generous headroom for transient overshoot while still catching a genuinely unstable/blown-up solve. Verified stable (no reduction from the planned Re=1000 top variant was needed) during development.'} |
+# **wake-velocity-snapshot**
 
-# ## Study: `moving-boundary`
-#
-# **Question.** Does a real dolfinx diffusion solve, re-assembled and re-solved every
-# substep on a mesh whose geometry is mutated in place according to a
-# prescribed moving-boundary law (prescribed ALE mesh motion), stay
-# numerically well-behaved -- boundary tracking the prescribed law, domain
-# measure scaling correctly with the deformation amplitude, field staying
-# finite -- when wrapped as a process-bigraph Process?
-#
-# **Objective.** Run the `moving_boundary` composite (a single `MovingBoundaryProcess` --
-# real dolfinx diffusion re-solved on a prescribed-ALE deforming mesh) and
-# verify (a) `boundary_position` tracks the prescribed oscillation law to
-# near machine precision, (b) `domain_measure`'s swing away from the base
-# area scales with the oscillation amplitude across an amplitude sweep, and
-# (c) the diffusion field stays finite and bounded across the run.
-#
-# **Hypothesis.** `MovingBoundaryProcess` should reproduce the prescribed top-boundary law
-# `y_top(t)` to near machine precision (the mesh deformation is an exact
-# uniform vertical stretch, not an approximation), the FEM-assembled domain
-# area should scale linearly with the oscillation amplitude (a larger
-# amplitude produces a proportionally larger swing in domain measure away
-# from the base area), and the diffusion field solved on the deforming mesh
-# should remain finite and bounded throughout, since no term in the
-# backward-Euler diffusion assembly can blow up under a smooth, bounded
-# mesh deformation.
+# wake-velocity-snapshot
+_save_viz('navier-stokes', 'wake-velocity-snapshot', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
-# ### Parameters
+# **pressure-snapshot**
 
-# ### Run
-#
-# _Set the runtime (`STEPS`) and step size (`INTERVAL`), then run. Each simulation builds the (edited) spec above and writes `runs.db`; the figures below read it. Set `RERUN = False` to skip re-simulating._
-
-# === Study: moving-boundary ===
-STUDY = 'moving-boundary'
-STUDY_DIR = REPO / 'studies' / STUDY
-STUDY_YAML = str(STUDY_DIR / "study.yaml")
-RUNS_DB = str(STUDY_DIR / "runs.db")
-
-print("No recorded runs for this study; nothing to reproduce.")
-
-# ### Visualizations
-#
-# _Results are shown by the figures below, produced by the run above._
-
-# **moving-boundary-animation**
-
-# moving-boundary-animation
-_save_viz('moving-boundary', 'moving-boundary-animation', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# pressure-snapshot
+_save_viz('navier-stokes', 'pressure-snapshot', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
 # ### Acceptance criteria
 #
@@ -455,34 +529,41 @@ _save_viz('moving-boundary', 'moving-boundary-animation', _render_one('', {}, RU
 #
 # | test | measures | passes if |
 # | --- | --- | --- |
-# | boundary-follows-prescribed-law | kind=derived_scalar field=boundary_law_abs_error | op < value 0.0001 provenance {'kind': 'theory', 'note': "The mesh motion is deform_mesh()'s exact uniform stretch by y_top(t); the only departure from exact equality is floating-point roundoff (observed ~1e-15 during development), so 1e-4 leaves enormous headroom while still catching a genuinely broken mesh motion (e.g. a stale/undeformed mesh)."} |
-# | domain-measure-scales-with-amplitude | kind=derived_scalar field=swing_ratio | op >= value 3.0 provenance {'kind': 'calibration', 'note': 'domain_measure = y_top(t) exactly, so the analytic swing ratio for a 5x amplitude ratio is exactly 5.0; 3.0 leaves headroom for transient/sampling effects (peak not landing exactly at the same sampled tick in both runs) while still catching a broken or amplitude-insensitive mesh motion.'} |
-# | field-stays-finite | kind=derived_scalar field=max_abs_field | op < value 5.0 provenance {'kind': 'theory', 'note': 'Backward-Euler diffusion of a bounded gaussian-bump initial condition (peak amplitude 1.0) with no source term cannot exceed its initial peak in the continuous limit; 5.0 leaves generous headroom for discretization overshoot on the deforming mesh while still catching a genuine numerical blow-up.'} |
+# | lift-oscillates | kind=derived_scalar field=cl_std_analysis_window | op > value 0.15 provenance {'kind': 'calibration', 'note': '0.15 sits well above the ~1e-3 lift-coefficient noise floor observed during the ramp-phase transient in development, and comfortably below the production run\'s achieved std(Cl)=0.41 (analysis window t=1.5-3.0s), so it cleanly separates "no shedding" from the real shedding this run produced.'} |
+# | drag-in-benchmark-range | kind=derived_scalar field=cd_mean_analysis_window | op in_range low 2.7 high 3.6 provenance {'kind': 'calibration', 'note': "Schafer/Turek DFG 2D-2 reference Cd_max~=3.22-3.24 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the production run's achieved Cd_mean=3.03 / Cd_max=3.15 (~3-6% below reference) on this solver's feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- i.e. calibrated to the observed result with headroom, not derived from theory alone."} |
+# | strouhal-in-range | kind=derived_scalar field=strouhal_number | op in_range low 0.25 high 0.4 provenance {'kind': 'calibration', 'note': "Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the production run's achieved St~=0.31 +/- 0.07 (the uncertainty is the FFT's own bin-resolution floor over the ~1.5s/ ~5-cycle analysis window, not an error bar on the underlying physics) -- i.e. calibrated to the observed result with headroom, not derived from theory alone."} |
 
 # ## Study: `complex-geometry`
 #
-# **Question.** Does a real gmsh-constructed non-trivial planar geometry -- imported into
-# dolfinx via `dolfinx.io.gmsh.model_to_mesh` -- produce a genuine
-# unstructured triangulation with a positive cell count, and does a real
-# Poisson solve on that imported mesh (homogeneous Dirichlet boundary, a
-# constant interior source) stay finite, bounded, and non-trivially
-# nonzero, across three qualitatively different domain topologies (a
-# simply-connected domain with a circular hole, a non-convex re-entrant
-# corner, and a multiply-connected annulus)?
+# **Question.** Does a real gmsh-constructed periodic array of circular pillars --
+# imported into dolfinx via `dolfinx.io.gmsh.model_to_mesh` -- support a
+# genuine steady Stokes (creeping) flow solve, driven by a prescribed
+# pressure drop, that stays approximately divergence-free and exactly
+# no-slip on every pillar and channel wall, and does the effective (Darcy)
+# permeability computed from that flow DECREASE monotonically as the
+# lattice's porosity decreases -- the Kozeny-Carman-type physical trend
+# expected of any real porous microstructure?
 #
-# **Objective.** Build the `complex_geometry` composite (a single `ComplexGeometryStep`:
-# gmsh geometry construction -> dolfinx import -> Poisson solve) for each of
-# the three named geometries (obstacle, L-shape, annulus) and verify (a)
-# each mesh imports with a positive, non-trivial cell count and (b) each
-# solve returns a finite, bounded, non-trivial solution field.
+# **Objective.** Build the `porous_lattice` composite (a single `PorousFlowStep`: gmsh
+# pillar-lattice geometry construction -> dolfinx Taylor-Hood import ->
+# steady Stokes solve -> Darcy permeability) for a baseline porosity plus 3
+# porosity variants (sweeping `pillar_radius` at fixed 4x4 lattice density)
+# and verify (a) every solve is approximately divergence-free and exactly
+# no-slip on every pillar/wall boundary, and (b) the effective permeability
+# k_eff decreases monotonically as porosity decreases across all 4 points.
 #
-# **Hypothesis.** The gmsh -> dolfinx import path is standard and robust for any of these
-# three domains, so each should import with a cell count well above a
-# trivial handful, and -Laplacian(u) = 1 with u=0 on the full boundary
-# should have a smooth, non-negative (maximum-principle), interior-peaked
-# solution on every one of them -- confirming the FEniCSx bridge works on
-# genuinely non-trivial, non-rectangular domains, not only the unit square
-# every other study in this investigation uses.
+# **Hypothesis.** A real Taylor-Hood (P2 velocity / P1 pressure) mixed dolfinx solve on the
+# gmsh-generated pillar-lattice mesh, driven by a "do-nothing"
+# pressure-boundary-load formulation (no-slip on walls+pillars, pressure
+# prescribed only as a natural momentum-equation load at the open
+# inflow/outflow boundaries -- see `viva_fenics/processes/flow.py`'s module
+# comment above `PorousFlowStep`), should produce a physically valid
+# creeping-flow field on every lattice density tried, and the
+# volume-averaged x-velocity this field produces -- fed through Darcy's law
+# -- should fall as the pillar packing gets denser (porosity drops),
+# matching the qualitative Kozeny-Carman scaling (k ~ phi^3/(1-phi)^2) even
+# though a 4-point sweep cannot independently validate that scaling's exact
+# exponents.
 
 # ### Parameters
 
@@ -502,15 +583,20 @@ print("No recorded runs for this study; nothing to reproduce.")
 #
 # _Results are shown by the figures below, produced by the run above._
 
-# **field-heatmap-obstacle**
+# **flow-field**
 
-# field-heatmap-obstacle
-_save_viz('complex-geometry', 'field-heatmap-obstacle', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# flow-field
+_save_viz('complex-geometry', 'flow-field', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
-# **mesh3d**
+# **velocity-magnitude**
 
-# mesh3d
-_save_viz('complex-geometry', 'mesh3d', _render_one('', {}, RUNS_DB, STUDY_YAML))
+# velocity-magnitude
+_save_viz('complex-geometry', 'velocity-magnitude', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **permeability-vs-porosity**
+
+# permeability-vs-porosity
+_save_viz('complex-geometry', 'permeability-vs-porosity', _render_one('', {}, RUNS_DB, STUDY_YAML))
 
 # ### Acceptance criteria
 #
@@ -518,6 +604,75 @@ _save_viz('complex-geometry', 'mesh3d', _render_one('', {}, RUNS_DB, STUDY_YAML)
 #
 # | test | measures | passes if |
 # | --- | --- | --- |
-# | mesh-imports-with-positive-cells | kind=derived_scalar field=min_n_cells_across_geometries | op > value 20 provenance {'kind': 'calibration', 'note': "Observed cell counts at resolution=32 run in the low thousands for all three geometries (see studies/complex-geometry/sims/run.py's printed summary); 20 is a generous floor that only fails on a genuinely degenerate/empty import, not on any real triangulation density."} |
-# | solution-finite-bounded-nontrivial | kind=derived_scalar field=min_solution_max_across_geometries | op > value 1e-06 provenance {'kind': 'theory', 'note': 'The maximum principle for -Laplacian(u)=const>0 with u=0 on the boundary guarantees a smooth, non-negative, interior-peaked solution on any of these domains; a solution that is all-zero, negative anywhere, or non-finite indicates a broken boundary condition or a corrupted imported mesh, not solver noise.'} |
-# | solution-stays-bounded | kind=derived_scalar field=max_solution_max_across_geometries | op < value 1.0 provenance {'kind': 'calibration', 'note': "Observed peak solution values at resolution=32 sit around 0.01-0.04 across all three geometries (see run.py's printed summary); 1.0 leaves two orders of magnitude of headroom while still catching a genuine assembly/orientation blow-up."} |
+# | mesh-imports-with-tagged-boundaries | kind=derived_scalar field=min_n_cells_across_variants | op > value 20 provenance {'kind': 'calibration', 'note': "Observed cell counts at nx=ny=4, h_pillar=0.015 run 5000-9000 across the porosity sweep (see studies/complex-geometry/sims/run.py's printed summary); 20 is a generous floor that only fails on a genuinely degenerate/empty import."} |
+# | stokes-flow-divergence-free-and-noslip | kind=derived_scalar field=max_divergence_mean_across_variants | op < value 0.01 provenance {'kind': 'calibration', 'note': "Observed mean|div(u)| at production resolution runs 3e-5-1e-4 across the porosity sweep (a real Taylor-Hood LBB-stable pairing is much closer to exact incompressibility than this investigation's IPCS processes) -- 1e-2 leaves two orders of magnitude of headroom while still catching a genuinely broken assembly."} |
+# | noslip-satisfied-on-pillars | kind=derived_scalar field=max_noslip_speed_across_variants | op < value 1e-08 provenance {'kind': 'theory', 'note': 'Dirichlet BC dof elimination zeroes these dofs to machine precision by construction; observed max is exactly 0.0 in development runs, a 1e-8 floor leaves comfortable headroom for solver round-off while still catching a genuinely leaked/unapplied BC.'} |
+# | permeability-decreases-with-porosity | kind=derived_scalar field=min_consecutive_k_eff_ratio | op > value 1.0 provenance {'kind': 'theory', 'note': "Darcy's law at fixed driving pressure drop: a denser pillar packing leaves less open pore space, so the volume-averaged velocity (and hence k_eff) must fall as porosity falls -- see this study's expected_behavior for the full argument. The observed 4-point sweep shows a >10x drop in k_eff from the sparsest to the densest lattice (see studies/complex-geometry/sims/run.py's printed summary for the exact achieved values)."} |
+
+# ## Study: `moving-boundary`
+#
+# **Question.** Does composing a mesh-motion process (a real harmonic-extension ALE
+# solve, prescribing a traveling-wave occlusion on a channel's walls) with
+# a flow process (real IPCS incompressible Navier-Stokes, ALE-corrected for
+# the moving mesh), coupled ONLY through shared bigraph stores, reproduce
+# genuine peristaltic pumping -- a net axial flow rate that is positive
+# (in the wave's direction) and grows with the occlusion amplitude -- from
+# a real dolfinx solve, with no term in either process hard-coding the
+# other's physics?
+#
+# **Objective.** Run the `peristalsis` composite (`PeristalticWallProcess` ⊕
+# `PeristalticFlowProcess`, coupled through `mesh_displacement_y` /
+# `mesh_velocity_y` / `wall_time` shared stores -- see
+# `viva_fenics/processes/peristalsis.py`'s module docstring) at three
+# occlusion amplitudes and verify (a) the baseline's post-transient,
+# time-averaged net flow rate Q (`mean_ux`, the domain-averaged
+# x-velocity) is genuinely positive, and (b) Q increases monotonically
+# across the amplitude sweep.
+#
+# **Hypothesis.** A traveling constriction squeezes fluid forward faster than it can
+# relax backward (the textbook peristalsis mechanism), so the domain-
+# averaged x-velocity, time-averaged after the startup transient, should
+# be measurably POSITIVE for a nonzero occlusion amplitude and should
+# increase as the occlusion amplitude increases (a larger constriction
+# displaces proportionally more fluid per wave period) -- entirely an
+# emergent property of the composition (`PeristalticWallProcess`'s
+# mesh-motion + `PeristalticFlowProcess`'s ALE-Navier-Stokes), since
+# neither process alone computes a flow rate or knows the other exists.
+
+# ### Parameters
+
+# ### Run
+#
+# _Set the runtime (`STEPS`) and step size (`INTERVAL`), then run. Each simulation builds the (edited) spec above and writes `runs.db`; the figures below read it. Set `RERUN = False` to skip re-simulating._
+
+# === Study: moving-boundary ===
+STUDY = 'moving-boundary'
+STUDY_DIR = REPO / 'studies' / STUDY
+STUDY_YAML = str(STUDY_DIR / "study.yaml")
+RUNS_DB = str(STUDY_DIR / "runs.db")
+
+print("No recorded runs for this study; nothing to reproduce.")
+
+# ### Visualizations
+#
+# _Results are shown by the figures below, produced by the run above._
+
+# **peristalsis-animation**
+
+# peristalsis-animation
+_save_viz('moving-boundary', 'peristalsis-animation', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# **net-flow-vs-amplitude**
+
+# net-flow-vs-amplitude
+_save_viz('moving-boundary', 'net-flow-vs-amplitude', _render_one('', {}, RUNS_DB, STUDY_YAML))
+
+# ### Acceptance criteria
+#
+# _Pre-registered checks (criteria/thresholds only — run the cells above to evaluate them)._
+#
+# | test | measures | passes if |
+# | --- | --- | --- |
+# | net-flow-is-positive | kind=derived_scalar field=net_flow_rate_baseline | op > value 0.02 provenance {'kind': 'calibration', 'note': "0.02 sits well below the achieved baseline Q~=0.19-0.2 (production run, this solver's feasible-wall-time mesh/dt), leaving generous headroom while still requiring genuine, clearly-nonzero pumping."} |
+# | flow-grows-with-amplitude | kind=derived_scalar field=net_flow_rate_monotonic | op == value True provenance {'kind': 'theory', 'note': "A larger occlusion amplitude displaces proportionally more fluid per wave period; the monotonic ordering is the qualitative peristaltic-transport signature this study validates (an exact pumping-rate formula is not required -- see the study's description)."} |
+# | wall-motion-genuinely-deforms-domain | kind=derived_scalar field=min_domain_area_fraction | op < value 0.92 provenance {'kind': 'theory', 'note': "domain_area is a real FEM-assembled integral over the current mesh; since L spans an integer number of full wavelengths, domain_area(t) is analytically constant at L*(H-amplitude) = 0.85*L*H for the baseline's amplitude=0.3 (the traveling wave's spatial cos-term integrates to exactly 0 over a whole wavelength). 0.92 leaves comfortable headroom below that exact, achieved value while still failing a near-1.0 (undeformed/un-coupled) reading, so a near-undeformed domain_area would indicate the mesh-motion -> flow coupling is not actually wired."} |

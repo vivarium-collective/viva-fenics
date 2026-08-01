@@ -14,7 +14,7 @@
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    <span class="study-name" id="study-name" data-slug="navier-stokes" title="navier-stokes">Navier-Stokes: lid-driven cavity flow (IPCS)</span>
+    <span class="study-name" id="study-name" data-slug="navier-stokes" title="navier-stokes">Navier-Stokes: von Karman vortex street (DFG 2D-2 benchmark)</span>
     
     <span class="phase-pill phase-build" title="Lifecycle: Design → Build → Simulate → Evaluate → Decide">Build</span>
     
@@ -222,29 +222,34 @@
     <div class="overview-section">
       <div id="question-text" class="overview-prose" data-editable="true" data-field="question"
            data-placeholder="+ Add the research question this study asks">Does a real dolfinx incompressible Navier-Stokes solve -- Taylor-Hood-ish
-P2/P1 velocity/pressure, classic IPCS (Incremental Pressure Correction
-Scheme) operator splitting -- reproduce the textbook lid-driven-cavity
-flow (a non-trivial, approximately divergence-free, quasi-steady
-recirculating flow pinned near the lid velocity) when wrapped as a
-process-bigraph Process, and does the scheme stay numerically stable
-across a moderate Reynolds-number sweep?
+P2/P1 velocity/pressure, classic IPCS operator splitting, on a
+gmsh-generated channel-with-cylinder mesh -- reproduce the DFG 2D-2
+benchmark&#39;s von Karman vortex street: periodic, self-sustaining vortex
+shedding off an off-center cylinder, with drag/lift coefficients and a
+Strouhal number in the neighborhood of the published reference values?
 </div>
       <div id="hypothesis-text" class="overview-prose" data-editable="true" data-field="hypothesis"
-           data-placeholder="(predicted outcome)">`NavierStokesProcess` should converge, within a fraction of a second of
-simulated time, to a quasi-steady cavity flow whose peak speed sits near
-the prescribed lid velocity (the moving-lid Dirichlet BC pins it there)
-and whose velocity field is approximately divergence-free (small, not
-exactly zero -- IPCS is only an approximate projection). The same IPCS
-scheme, unmodified, should remain stable (no blow-up) from Re=100 up
-through Re=1000 at this mesh/timestep, since diffusion is treated
-implicitly (Crank-Nicolson) even though convection is explicit.
+           data-placeholder="(predicted outcome)">At Re=100 with the cylinder offset 0.005 above the channel centerline (the
+DFG 2D-2 geometry), the wake behind the cylinder is linearly unstable: an
+impulsively-started, initially near-symmetric flow should grow a small
+asymmetric perturbation (seeded by the geometric offset and numerical
+round-off) into a fully periodic, alternating vortex street, visible
+directly as an oscillating lift coefficient (mean ~0, non-zero amplitude)
+and an oscillating drag coefficient (positive mean, smaller-amplitude
+ripple at twice the shedding frequency) once the flow leaves the startup
+transient. The oscillation frequency, non-dimensionalized as a Strouhal
+number St = f*D/U, should land in the neighborhood of the DFG reference
+~0.30 even if this solver&#39;s mesh/dt (chosen for feasible wall-time, not
+full DFG-grade accuracy) don&#39;t reproduce the reference Cd_max/Cl_max to
+the last decimal.
 </div>
-      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the `navier_stokes` composite (lid-driven cavity on the unit square,
-P2 velocity / P1 pressure, IPCS splitting) to quasi-steady state and
-verify (a) the flow is non-trivial and bounded near the lid velocity, (b)
-the velocity field is approximately divergence-free, and (c) the same
-scheme stays stable (finite, non-blown-up) across a Reynolds sweep
-(100, 400, 1000).
+      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run the `vortex_street` composite (real dolfinx IPCS on a gmsh-generated,
+cylinder-refined channel mesh) long enough to pass through the impulsive-
+start transient into established periodic shedding, and verify (a) the
+lift coefficient genuinely oscillates (not just noisy/flat), (b) the mean
+drag coefficient sits in the neighborhood of the DFG 2D-2 benchmark&#39;s
+Cd_max~=3.22-3.24, and (c) the shedding frequency&#39;s Strouhal number sits
+in the neighborhood of the benchmark&#39;s St~=0.30.
 </div>
     </div>
     
@@ -432,7 +437,7 @@ studies.
 
       <div class="study-counts-strip">
         <div class="count-cell">
-          <strong>2</strong>
+          <strong>0</strong>
           <span class="count-label">variants</span>
         </div>
         <div class="count-cell">
@@ -471,24 +476,24 @@ studies.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.flow.navier_stokes" data-model-overrides='{"dt": 0.01, "resolution": 24, "reynolds": 100.0}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.flow.vortex_street" data-model-overrides='{"dt": 0.0005, "h_cylinder": 0.008, "h_far": 0.05, "reynolds": 100.0}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong>navier-stokes-baseline</strong>
+        <strong>vortex-street-baseline</strong>
         
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.flow.navier_stokes</code>
+        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.flow.vortex_street</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
-                onclick="_openCompositeLoom('viva_fenics.composites.flow.navier_stokes')">🧬 explore &amp; run ↗</button>
+                onclick="_openCompositeLoom('viva_fenics.composites.flow.vortex_street')">🧬 explore &amp; run ↗</button>
         
       </div>
       
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="text" class="baseline-composite-input" data-baseline-name="navier-stokes-baseline"
-               value="viva_fenics.composites.flow.navier_stokes" placeholder="pkg.composites.name"
+        <input type="text" class="baseline-composite-input" data-baseline-name="vortex-street-baseline"
+               value="viva_fenics.composites.flow.vortex_street" placeholder="pkg.composites.name"
                style="flex:1;min-width:200px;font-family:monospace;font-size:0.82em;padding:3px 6px" />
         <button type="button" class="action-btn baseline-composite-set" style="font-size:0.8em"
-                data-baseline-name="navier-stokes-baseline">Set composite</button>
+                data-baseline-name="vortex-street-baseline">Set composite</button>
       </div>
-      <div class="baseline-composite-status muted" data-baseline-name="navier-stokes-baseline" style="font-size:0.8em;margin-top:2px"></div>
+      <div class="baseline-composite-status muted" data-baseline-name="vortex-street-baseline" style="font-size:0.8em;margin-top:2px"></div>
       
       <div class="model-config-mount" style="margin-top:8px">
         <p class="muted" style="font-size:0.85em;margin:0">Loading configuration…</p></div>
@@ -606,30 +611,60 @@ studies.
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">cavity-flow-streamlines</strong>
-          <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/cavity_flow.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">vortex-street-vorticity</strong>
+          <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_vorticity.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly streamlines of the lid-driven cavity flow.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Animated vorticity field -- the von Karman vortex street shedding off the cylinder, alternating positive/negative lobes in the wake.</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/cavity_flow.html"
+        <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_vorticity.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="cavity-flow-streamlines"
+                loading="lazy" title="vortex-street-vorticity"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">cavity-pressure-heatmap</strong>
-          <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/cavity_pressure.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">drag-lift-timeseries</strong>
+          <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/drag_lift_timeseries.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the cavity pressure field.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Drag/lift coefficient vs simulated time -- Cl visibly oscillates (std=0.41) once shedding establishes.</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/cavity_pressure.html"
+        <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/drag_lift_timeseries.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="cavity-pressure-heatmap"
+                loading="lazy" title="drag-lift-timeseries"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">wake-velocity-snapshot</strong>
+          <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_velocity.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly streamlines of the wake velocity field at the end of the production run (t=3.0s).</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_velocity.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="wake-velocity-snapshot"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">pressure-snapshot</strong>
+          <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_pressure.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the pressure field at the end of the production run (t=3.0s).</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_pressure.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="pressure-snapshot"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
@@ -714,10 +749,10 @@ studies.
     
     
     
-    <li class="expected-behavior-item" id="bt-reaches-quasi-steady"
+    <li class="expected-behavior-item" id="bt-lift-oscillates"
         data-test-kind="behavioral"
         
-        data-pytest-node="reaches-quasi-steady"
+        data-pytest-node="lift-oscillates"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -726,20 +761,20 @@ studies.
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">reaches-quasi-steady</strong>
+        <strong style="font-size: 0.9em;">lift-oscillates</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>navier-stokes-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>vortex-street-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">The relative change in speed_integral between the checkpoint at
-t=0.5 and a further checkpoint at t=0.6 must be below 5%.
+      <div style="margin-top: 6px; font-size: 0.95em;">std(lift_coeff) over the last half of the production run (after the
+startup transient) must exceed 0.15.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "quasi_steady_rel_change", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "5% is a generous convergence band above the observed residual change (~1e-3 or smaller) once the cavity flow has settled, calibrated during development at resolution=24, dt=0.01."}, "value": 0.05}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "cl_std_analysis_window", "kind": "derived_scalar"}
+pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "0.15 sits well above the ~1e-3 lift-coefficient noise floor observed during the ramp-phase transient in development, and comfortably below the production run\u0027s achieved std(Cl)=0.41 (analysis window t=1.5-3.0s), so it cleanly separates \"no shedding\" from the real shedding this run produced."}, "value": 0.15}</pre>
       </details>
       
       
@@ -754,10 +789,10 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "5% is a
     
     
     
-    <li class="expected-behavior-item" id="bt-approximately-divergence-free"
+    <li class="expected-behavior-item" id="bt-drag-in-benchmark-range"
         data-test-kind="behavioral"
         
-        data-pytest-node="approximately-divergence-free"
+        data-pytest-node="drag-in-benchmark-range"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -766,20 +801,21 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "5% is a
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">approximately-divergence-free</strong>
+        <strong style="font-size: 0.9em;">drag-in-benchmark-range</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>navier-stokes-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>vortex-street-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">mean(|div(u)|) over the domain, computed via DG0 interpolation of
-div(u_n), must be below 0.05 at the baseline (resolution=24, Re=100).
+      <div style="margin-top: 6px; font-size: 0.95em;">mean(drag_coeff) over the analysis window must land in [2.7, 3.6],
+bracketing the achieved Cd_mean=3.03 and close to the DFG 2D-2
+benchmark&#39;s Cd_max~=3.22-3.24.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "mean_abs_divergence", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "IPCS operator splitting introduces an O(dt) divergence residual (plus a local O(h) artifact at the lid\u0027s two discontinuous-BC corners) that is not exactly zero but should be small and shrink under refinement; 0.05 is well above the ~0.003 observed at this resolution during development."}, "value": 0.05}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "cd_mean_analysis_window", "kind": "derived_scalar"}
+pass_if: {"high": 3.6, "low": 2.7, "op": "in_range", "provenance": {"kind": "calibration", "note": "Schafer/Turek DFG 2D-2 reference Cd_max~=3.22-3.24 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the production run\u0027s achieved Cd_mean=3.03 / Cd_max=3.15 (~3-6% below reference) on this solver\u0027s feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- i.e. calibrated to the observed result with headroom, not derived from theory alone."}}</pre>
       </details>
       
       
@@ -794,10 +830,10 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "IPCS operato
     
     
     
-    <li class="expected-behavior-item" id="bt-stable-across-reynolds-sweep"
+    <li class="expected-behavior-item" id="bt-strouhal-in-range"
         data-test-kind="behavioral"
         
-        data-pytest-node="stable-across-reynolds-sweep"
+        data-pytest-node="strouhal-in-range"
         data-classification="supporting"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #3b82f6; background: #f8fafc; border-radius: 4px;">
@@ -806,20 +842,21 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "theory", "note": "IPCS operato
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-supporting">supporting</span>
-        <strong style="font-size: 0.9em;">stable-across-reynolds-sweep</strong>
+        <strong style="font-size: 0.9em;">strouhal-in-range</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>navier-stokes-baseline</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>vortex-street-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">Across the reynolds=[100,400,1000] sweep, every variant&#39;s final max
-speed must be finite and below 2x the lid velocity (no blow-up).
+      <div style="margin-top: 6px; font-size: 0.95em;">The Strouhal number (Hann-windowed, parabolic-interpolated FFT peak of
+the lift-coefficient signal) over the analysis window must land in
+[0.25, 0.40], bracketing the achieved St~=0.31 +/- 0.07.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "max_speed_across_sweep", "kind": "derived_scalar"}
-pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "The lid BC directly prescribes the max speed at u=lid_velocity; 2x leaves generous headroom for transient overshoot while still catching a genuinely unstable/blown-up solve. Verified stable (no reduction from the planned Re=1000 top variant was needed) during development."}, "value": 2.0}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "strouhal_number", "kind": "derived_scalar"}
+pass_if: {"high": 0.4, "low": 0.25, "op": "in_range", "provenance": {"kind": "calibration", "note": "Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the production run\u0027s achieved St~=0.31 +/- 0.07 (the uncertainty is the FFT\u0027s own bin-resolution floor over the ~1.5s/ ~5-cycle analysis window, not an error bar on the underlying physics) -- i.e. calibrated to the observed result with headroom, not derived from theory alone."}}</pre>
       </details>
       
       
@@ -945,7 +982,7 @@ pass_if: {"op": "\u003c", "provenance": {"kind": "calibration", "note": "The lid
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "770113d655809e97c7a865b30c7f50154e935746", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/770113d655809e97c7a865b30c7f50154e935746", "branch": "main", "generated_at": "2026-08-01 02:06 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "navier-stokes";
@@ -1077,7 +1114,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
   var el = document.getElementById("study-configure-run");
   if (!el || !window.ConfigureRun) return;
   
-  var compositeRef = "viva_fenics.composites.flow.navier_stokes";
+  var compositeRef = "viva_fenics.composites.flow.vortex_street";
   
   var slug = window._studyName || "navier-stokes";
   ConfigureRun.mount(el, { composite: compositeRef, target: "study", study: slug });

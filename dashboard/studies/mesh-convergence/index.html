@@ -14,7 +14,7 @@
 <header class="study-header">
   <div style="display:flex; align-items:baseline; gap:12px; justify-content:space-between;">
   <h1 class="study-title">
-    <span class="study-name" id="study-name" data-slug="mesh-convergence" title="mesh-convergence">Mesh convergence: FEM rigor</span>
+    <span class="study-name" id="study-name" data-slug="mesh-convergence" title="mesh-convergence">Adaptive mesh refinement: recovering optimal convergence on a corner singularity</span>
     
     <span class="phase-pill phase-build" title="Lifecycle: Design → Build → Simulate → Evaluate → Decide">Build</span>
     
@@ -221,19 +221,32 @@
     
     <div class="overview-section">
       <div id="question-text" class="overview-prose" data-editable="true" data-field="question"
-           data-placeholder="+ Add the research question this study asks">Does the `PoissonSolverStep` wrapper deliver the theoretical O(h^2) mesh
-convergence rate for P1 Lagrange elements, or does the wrapping introduce
-an artifact that masks/inflates the true discretization error?
+           data-placeholder="+ Add the research question this study asks">On the classic L-shaped-domain re-entrant-corner Laplace singularity --
+where the exact solution&#39;s gradient blows up at the corner and UNIFORM
+refinement is provably capped at a suboptimal convergence rate -- does a
+real residual-based a posteriori error estimator, driving Doerfler-marked
+ADAPTIVE refinement, concentrate elements at the corner and recover
+near-optimal convergence?
 </div>
       <div id="hypothesis-text" class="overview-prose" data-editable="true" data-field="hypothesis"
-           data-placeholder="(predicted outcome)">On a superconvergence-resistant (crossed-diagonal) unit-square mesh, the
-L2 error of a P1 (degree=1) solve should scale as O(h^2) across a
-resolution sweep, giving an observed log-log slope near 2.
+           data-placeholder="(predicted outcome)">The L-shaped domain&#39;s re-entrant corner (interior angle 3*pi/2) has exact
+harmonic solution u = r^(2/3)*sin(2*theta/3), whose H^(5/3-eps) regularity
+caps P1 UNIFORM refinement&#39;s energy-norm convergence at O(dofs^-1/3)
+instead of the usual O(dofs^-1/2). A residual-based edge-jump error
+estimator should produce indicators that spike sharply at the corner
+(where u_h&#39;s piecewise-linear gradient most disagrees with its
+neighbors), so Doerfler (bulk-chasing) marking on those indicators should
+concentrate new elements there and recover close to the optimal
+O(dofs^-1/2) rate despite the singularity.
 </div>
-      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Sweep the `mesh_convergence` composite&#39;s `resolution` parameter (8, 16, 32)
-at fixed polynomial degree 1, fit the L2-error-vs-mesh-size slope on a
-log-log plot, and confirm the fitted rate matches the theoretical
-O(h^(degree+1)) convergence order.
+      <div id="objective-text" class="overview-prose" data-editable="true" data-field="objective">Run a uniform-refinement sequence and a residual-based adaptive (AMR)
+sequence from the same coarse initial L-shaped mesh, fit the energy-norm-
+error-vs-DOFs log-log slope for each, and confirm (a) the adaptive slope
+is substantially steeper (closer to the optimal -1/2) than the uniform
+slope (capped near -1/3), and (b) the adaptive mesh&#39;s cell density near
+the re-entrant corner, relative to the far field, grows dramatically
+relative to the initial mesh -- direct geometric evidence the estimator
+is doing its job, not just producing a better number by coincidence.
 </div>
     </div>
     
@@ -370,8 +383,9 @@ O(h^(degree+1)) convergence order.
         
         
         <div><strong>Proceed when:</strong> <span class="muted">No downstream studies in this investigation depend on mesh-convergence;
-it stands alongside transient-diffusion as a standalone FEM-rigor check
-on the poisson-validation baseline.
+it stands alongside the investigation&#39;s other studies as a standalone
+FEM-rigor showcase built directly on the validated dolfinx bridge
+(poisson-validation).
 </span></div>
         
       </div>
@@ -389,8 +403,8 @@ on the poisson-validation baseline.
         
         
         <p style="margin:0">
-          <strong>1</strong> tests defined —
-            <span class="classification-pill classification-primary">1 primary</span>
+          <strong>2</strong> tests defined —
+            <span class="classification-pill classification-primary">2 primary</span>
           <a onclick="_setStudyTab('tests')" style="cursor:pointer;color:#3b82f6;text-decoration:underline;margin-left:6px">View on Tests tab →</a>
         </p>
       </div>
@@ -418,7 +432,7 @@ on the poisson-validation baseline.
 
       <div class="study-counts-strip">
         <div class="count-cell">
-          <strong>2</strong>
+          <strong>0</strong>
           <span class="count-label">variants</span>
         </div>
         <div class="count-cell">
@@ -457,24 +471,24 @@ on the poisson-validation baseline.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.convergence.mesh_convergence" data-model-overrides='{"degree": 1, "resolution": 8}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.amr.adaptive_refinement" data-model-overrides='{"degree": 1, "marking_fraction": 0.5, "n_refinements": 15}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <strong>resolution-8</strong>
+        <strong>adaptive-refinement-baseline</strong>
         
-        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.convergence.mesh_convergence</code>
+        <code style="font-size:0.82em;color:#374151;background:#f1f5f9;padding:1px 6px;border-radius:3px">viva_fenics.composites.amr.adaptive_refinement</code>
         <button type="button" class="action-btn" style="font-size:0.8em"
-                onclick="_openCompositeLoom('viva_fenics.composites.convergence.mesh_convergence')">🧬 explore &amp; run ↗</button>
+                onclick="_openCompositeLoom('viva_fenics.composites.amr.adaptive_refinement')">🧬 explore &amp; run ↗</button>
         
       </div>
       
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-        <input type="text" class="baseline-composite-input" data-baseline-name="resolution-8"
-               value="viva_fenics.composites.convergence.mesh_convergence" placeholder="pkg.composites.name"
+        <input type="text" class="baseline-composite-input" data-baseline-name="adaptive-refinement-baseline"
+               value="viva_fenics.composites.amr.adaptive_refinement" placeholder="pkg.composites.name"
                style="flex:1;min-width:200px;font-family:monospace;font-size:0.82em;padding:3px 6px" />
         <button type="button" class="action-btn baseline-composite-set" style="font-size:0.8em"
-                data-baseline-name="resolution-8">Set composite</button>
+                data-baseline-name="adaptive-refinement-baseline">Set composite</button>
       </div>
-      <div class="baseline-composite-status muted" data-baseline-name="resolution-8" style="font-size:0.8em;margin-top:2px"></div>
+      <div class="baseline-composite-status muted" data-baseline-name="adaptive-refinement-baseline" style="font-size:0.8em;margin-top:2px"></div>
       
       <div class="model-config-mount" style="margin-top:8px">
         <p class="muted" style="font-size:0.85em;margin:0">Loading configuration…</p></div>
@@ -592,15 +606,45 @@ on the poisson-validation baseline.
       
       <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
         <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
-          <strong style="flex:1">convergence-loglog</strong>
-          <a href="/viva-fenics/dashboard/studies/mesh-convergence/viz/convergence.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+          <strong style="flex:1">mesh-refinement-animation</strong>
+          <a href="/viva-fenics/dashboard/studies/mesh-convergence/viz/mesh_refinement_animation.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly log-log convergence plot (L2 error vs mesh resolution).</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Animated adaptive mesh (levels 0-8) -- element density visibly concentrating at the re-entrant corner as Doerfler marking targets the singularity.</p>
         
-        <iframe src="/viva-fenics/dashboard/studies/mesh-convergence/viz/convergence.html"
+        <iframe src="/viva-fenics/dashboard/studies/mesh-convergence/viz/mesh_refinement_animation.html"
                 style="width:100%;min-height:200px;border:0;display:block"
-                loading="lazy" title="convergence-loglog"
+                loading="lazy" title="mesh-refinement-animation"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">convergence-comparison</strong>
+          <a href="/viva-fenics/dashboard/studies/mesh-convergence/viz/convergence_comparison.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Log-log energy-norm error vs DOFs, uniform (slope ~-0.338) vs adaptive (slope ~-0.528), each with a fitted-slope annotation.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/mesh-convergence/viz/convergence_comparison.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="convergence-comparison"
+                onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
+                ></iframe>
+      </div>
+      
+      <div class="embed-viz-card" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;background:#fff">
+        <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+          <strong style="flex:1">final-solution-heatmap</strong>
+          <a href="/viva-fenics/dashboard/studies/mesh-convergence/viz/final_solution_heatmap.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
+        </div>
+        
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the final adaptive solution -- the r^(2/3)*sin(2*theta/3) singular corner solution on its finest adapted mesh.</p>
+        
+        <iframe src="/viva-fenics/dashboard/studies/mesh-convergence/viz/final_solution_heatmap.html"
+                style="width:100%;min-height:200px;border:0;display:block"
+                loading="lazy" title="final-solution-heatmap"
                 onload="(function(f){try{var d=f.contentDocument;if(!d)return;var b=d.body,e=d.documentElement;var bStyle=b&&d.defaultView&&d.defaultView.getComputedStyle?d.defaultView.getComputedStyle(b):null;var pinnedH=0;if(bStyle&&(bStyle.overflow||'').indexOf('hidden')>=0){var hm=(bStyle.height||'').match(/^(\d+(?:\.\d+)?)px$/);if(hm)pinnedH=Math.round(parseFloat(hm[1]));}var h=pinnedH>0?pinnedH:Math.max(e?e.scrollHeight:0,b?b.scrollHeight:0);if(h>0)f.style.height=(h+24)+'px';}catch(e){}})(this)"
                 ></iframe>
       </div>
@@ -685,10 +729,10 @@ on the poisson-validation baseline.
     
     
     
-    <li class="expected-behavior-item" id="bt-convergence-rate-matches-order"
+    <li class="expected-behavior-item" id="bt-adaptive-beats-uniform-rate"
         data-test-kind="behavioral"
         
-        data-pytest-node="convergence-rate-matches-order"
+        data-pytest-node="adaptive-beats-uniform-rate"
         data-classification="primary"
         data-result="pending"
         style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
@@ -697,22 +741,62 @@ on the poisson-validation baseline.
       <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
         <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
         <span class="classification-pill classification-primary">primary</span>
-        <strong style="font-size: 0.9em;">convergence-rate-matches-order</strong>
+        <strong style="font-size: 0.9em;">adaptive-beats-uniform-rate</strong>
         
-        <span class="muted" style="font-size:0.78em">requires: <code>resolution-8</code></span>
+        <span class="muted" style="font-size:0.78em">requires: <code>adaptive-refinement-baseline</code></span>
         
       </div>
-      <div style="margin-top: 6px; font-size: 0.95em;">The fitted slope of log(l2_error) vs log(h) across resolution=[8,16,32]
-must be at or above 1.7 (theoretical O(h^2) is 2.0; 1.7 leaves headroom
-for mesh-dependent noise while still ruling out a broken/first-order
-solve).
+      <div style="margin-top: 6px; font-size: 0.95em;">The adaptive log-log energy-error-vs-DOFs slope must be &lt;= -0.45 (near
+the theoretical optimal -0.5) AND at least 0.10 steeper (more negative)
+than the uniform slope over the same initial mesh.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
-        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "convergence_rate", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e=", "provenance": {"kind": "theory", "note": "Standard FEM a priori error theory gives O(h^(k+1)) for degree-k Lagrange elements in the L2 norm; k=1 implies rate=2. 1.7 is a calibration margin below the theoretical value, not a fitted threshold."}, "value": 1.7}</pre>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "adaptive_rate", "kind": "derived_scalar"}
+pass_if: {"op": "\u003c=", "provenance": {"kind": "theory", "note": "Standard a priori FEM theory for a corner singularity of exponent 2/3 caps P1 uniform refinement\u0027s energy-norm rate near O(dofs^-1/3) (theoretical -0.333); optimally graded/adaptive refinement recovers close to the smooth-solution rate O(dofs^-1/2). -0.45 is a calibration margin above (i.e. less steep than) the theoretical -0.5, not a fitted threshold; the achieved production rate is -0.528."}, "value": -0.45}</pre>
+      </details>
+      
+      
+      
+      
+    </li>
+    
+    
+    
+    
+    
+    
+    
+    
+    <li class="expected-behavior-item" id="bt-refinement-concentrates-at-corner"
+        data-test-kind="behavioral"
+        
+        data-pytest-node="refinement-concentrates-at-corner"
+        data-classification="primary"
+        data-result="pending"
+        style="margin: 0 0 10px 0; padding: 10px 12px; border-left: 4px solid #10b981; background: #f8fafc; border-radius: 4px;">
+      
+        
+      <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+        <span class="bt-result" style="font-size: 0.75em; font-family: monospace; padding: 2px 8px; border-radius: 9999px; background: #f1f5f9; color: #475569">⏳ pending</span>
+        <span class="classification-pill classification-primary">primary</span>
+        <strong style="font-size: 0.9em;">refinement-concentrates-at-corner</strong>
+        
+        <span class="muted" style="font-size:0.78em">requires: <code>adaptive-refinement-baseline</code></span>
+        
+      </div>
+      <div style="margin-top: 6px; font-size: 0.95em;">The final adaptive mesh&#39;s near-corner (r&lt;0.15) vs far-field (r&gt;0.5)
+cell-density ratio must be &gt;= 15.0, and its growth relative to the
+initial mesh&#39;s ratio must be &gt;= 10.0x.
+</div>
+      
+      
+      <details style="margin-top: 6px; font-size: 0.82em;">
+        <summary class="muted" style="cursor: pointer;">Assertion</summary>
+        <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "corner_density_ratio", "kind": "derived_scalar"}
+pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The initial (near-uniform, pre-refinement) mesh\u0027s own near/far density ratio is 0.52 -- the natural \"no bias\" baseline for this domain/radii choice. The achieved production adaptive mesh\u0027s ratio is 29.17 (55.8x growth). 15.0 sits with large headroom below that achieved value while still failing a scheme that spread refinement uniformly (which would keep the ratio near the initial ~0.5)."}, "value": 15.0}</pre>
       </details>
       
       
@@ -838,7 +922,7 @@ pass_if: {"op": "\u003e=", "provenance": {"kind": "theory", "note": "Standard FE
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "770113d655809e97c7a865b30c7f50154e935746", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/770113d655809e97c7a865b30c7f50154e935746", "branch": "main", "generated_at": "2026-08-01 02:06 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "mesh-convergence";
@@ -970,7 +1054,7 @@ window._seedFollowupProposal = _seedFollowupProposal;
   var el = document.getElementById("study-configure-run");
   if (!el || !window.ConfigureRun) return;
   
-  var compositeRef = "viva_fenics.composites.convergence.mesh_convergence";
+  var compositeRef = "viva_fenics.composites.amr.adaptive_refinement";
   
   var slug = window._studyName || "mesh-convergence";
   ConfigureRun.mount(el, { composite: compositeRef, target: "study", study: slug });

@@ -37,30 +37,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      - uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          enable-cache: true
-
-      - name: Set up Python
-        run: uv python install 3.12.9
-
-      - name: Install vivarium-workbench (robust — skip workspace sim-deps)
-        # Only vivarium-workbench + this workspace's own package are needed to
-        # render composite specs statically. The workspace's sibling
-        # process-packages (often relative-path deps) do NOT resolve on a clean
-        # runner and are NOT needed for the static build, so install the
-        # workspace with --no-deps: a missing sim-dep degrades to an unresolved
-        # composite in the dashboard rather than aborting the whole publish.
-        run: |
-          uv venv
-          uv pip install "vivarium-workbench @ git+https://github.com/vivarium-collective/vivarium-workbench.git@main"
-          uv pip install -e . --no-deps || echo "workspace has no installable build; composites render from spec only"
+          cache: true
 
       - name: Build dashboard snapshot
-        run: |
-          source .venv/bin/activate
-          bash scripts/publish_dashboard.sh reports/published/dashboard
+        # fenics-dolfinx is conda-only, so the static build runs under pixi's
+        # locked env (pixi.lock, channel: conda-forge) rather than a uv venv —
+        # this gives composite discovery real dolfinx instead of degrading to
+        # an unresolved composite.
+        run: pixi run bash scripts/publish_dashboard.sh reports/published/dashboard
 
       - name: Publish to gh-pages (create the branch if absent)
         run: |

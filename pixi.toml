@@ -2,7 +2,7 @@
 name = "viva-fenics"
 authors = ["Eran <agmon.eran@gmail.com>"]
 channels = ["conda-forge"]
-platforms = ["osx-arm64"]
+platforms = ["osx-arm64", "linux-64"]
 version = "0.1.0"
 
 [dependencies]

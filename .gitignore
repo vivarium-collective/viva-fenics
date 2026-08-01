@@ -10,10 +10,11 @@ output/
 *.nc
 reports/published/
 scratch/*.png
-.pbg/
 
-
-# Added by pbg-superpowers in-place scaffolder
+# .pbg/ is runtime state — ignore all of it EXCEPT the vendored schemas
+# (lint-workspace.py validates against .pbg/schemas/*.json, so they must be
+# committed) and the example env file. A blanket `.pbg/` here would override
+# the re-includes below and drop the schemas from CI (workspace-ci lint fails).
 .pbg/*
 !.pbg/schemas/
 !.pbg/hpc.env.example

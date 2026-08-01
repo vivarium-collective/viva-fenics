@@ -24,10 +24,13 @@ description: |
   (manufactured-solution correctness, O(h^2) P1 convergence).
   `transient-diffusion` extends the bridge to time-stepped Processes and
   checks mass conservation under backward-Euler integration.
-  `reaction-diffusion` is the coupling headline: it wires `DiffusionProcess`
-  and `LogisticReactionProcess` into the same `stores.solution` /
-  `stores.source` paths and shows Fisher-KPP-like mass growth emerges from
-  that wiring alone -- the composability property the core of the
+  `reaction-diffusion` is the coupling + visual headline: it wires TWO
+  `DiffusionProcess` instances (species U, V; Du=2*Dv) and ONE
+  `GrayScottReactionProcess` into shared `stores.u` / `stores.v` /
+  `stores.source_u` / `stores.source_v` paths and shows a genuine 2D Turing
+  instability -- spontaneous self-organization into spot/labyrinth/stripe
+  patterns -- emerges from that three-process wiring alone, across three
+  Gray-Scott parameter regimes -- the composability property the core of the
   investigation exists to demonstrate. Three ADVANCED studies extend the
   showcase beyond scalar diffusion/reaction: `navier-stokes` is the
   fluid-dynamics showpiece -- a von Karman vortex street (the DFG 2D-2
@@ -69,9 +72,12 @@ executive:
     Standalone execution of every runner reproduces the expected numerics:
     l2_error ~2.8e-13 (poisson-validation, tol 1e-10), observed convergence
     rate ~2.00 (mesh-convergence, P1 -> O(h^2)), mass conserved with a
-    decaying peak (transient-diffusion), reaction-driven mass growth
-    ~2.6e9x the near-zero-reaction control while the field stays bounded
-    near K=1.0 (reaction-diffusion), a von Karman vortex street shedding off
+    decaying peak (transient-diffusion), a genuine Gray-Scott Turing
+    instability -- V's spatial variance grows well past the 5x threshold
+    from a near-uniform start, the pattern settles into a bounded, finite
+    coverage fraction, and three (F,k) regimes produce measurably different
+    morphology (reaction-diffusion; see the study report for the exact
+    achieved values), a von Karman vortex street shedding off
     an off-center cylinder with oscillating drag/lift in the neighborhood of
     the DFG 2D-2 benchmark's reference Cd/Cl/Strouhal
     (navier-stokes), a deforming-mesh diffusion solve whose boundary tracks
@@ -96,10 +102,12 @@ scientific_argument:
   main_claim: |
     A real dolfinx bridge, wrapped as ordinary process-bigraph Steps and
     Processes, reproduces canonical FEM validation results (MMS correctness,
-    O(h^2) P1 convergence, mass-conserving transient diffusion) and, when two
-    independently-authored processes are wired to the same bigraph stores,
-    produces genuine Fisher-KPP coupling -- without either process containing
-    any knowledge of the other. The showcase now spans validation ->
+    O(h^2) P1 convergence, mass-conserving transient diffusion) and, when
+    THREE independently-authored processes (two DiffusionProcess instances
+    plus one GrayScottReactionProcess) are wired to the same bigraph stores,
+    produces a genuine 2D Turing instability -- spontaneous pattern
+    self-organization -- without any of the three processes containing any
+    knowledge of the others. The showcase now spans validation ->
     coupling -> fluid dynamics -> moving boundaries -> complex geometry:
     the same bridge that passes MMS/convergence checks and demonstrates
     store-wiring composability also drives a real incompressible
@@ -116,11 +124,13 @@ scientific_argument:
   - "transient-diffusion: the gaussian bump's peak decays under backward-Euler
     diffusion while the FEM-integral mass stays flat (Neumann/no-flux
     boundary), confirming the time-stepped Process wrapper conserves mass."
-  - "reaction-diffusion: mass growth with LogisticReactionProcess coupled in
-    (r=2.0) is orders of magnitude larger than a near-zero-reaction control
-    (r=1e-9, identical wiring) run for the same duration -- the growth is
-    attributable to the composed reaction term, not solver noise -- while the
-    field stays bounded near the logistic carrying capacity K=1.0."
+  - "reaction-diffusion: two DiffusionProcess instances (species U, V;
+    Du=2*Dv) and one GrayScottReactionProcess, coupled purely through
+    shared stores, produce a genuine Turing instability -- V's spatial
+    variance grows well past a near-uniform start, the pattern is bounded
+    and structurally non-trivial (a finite fraction of the domain, not all
+    or none of it), and three (F,k) regimes produce measurably different
+    coverage/morphology; see the study's report for the achieved values."
   - "navier-stokes: flow past an off-center cylinder (DFG 2D-2 benchmark,
     Re=100) sheds a genuine von Karman vortex street -- the lift coefficient
     oscillates once past the impulsive-start transient, the mean drag
@@ -152,10 +162,18 @@ scientific_argument:
     own printed checks, not the dashboard's evaluator."
   key_figures: []
   caveats:
-  - "The coupling composability claim is demonstrated for one process pair
-    (DiffusionProcess / LogisticReactionProcess); it is not yet exercised
-    against a third, unrelated process to further stress-test the claim that
-    the wiring pattern generalizes."
+  - "The coupling composability claim is demonstrated for one three-process
+    wiring pattern (2x DiffusionProcess + GrayScottReactionProcess, and
+    separately the simpler 2-process DiffusionProcess/LogisticReactionProcess
+    Fisher-KPP pairing the same library still ships); it has not been
+    exercised against an unrelated fourth process to further stress-test
+    that the wiring pattern generalizes beyond diffusion+reaction."
+  - "The classic Gray-Scott 'spots' regime (F=0.035, k=0.065) was found
+    subcritical for this composite's Du/Dv/dt/domain-size combination during
+    development (every seeding strategy tried decayed back to the trivial
+    fixed point); the study's three regimes (coral/mitosis-like, labyrinth,
+    stripes) were chosen because they were verified to grow robustly, not
+    because they are the only regimes worth showing -- see the study report."
   - "The three advanced studies (navier-stokes, moving-boundary,
     complex-geometry) each stand on their own dolfinx bridge exercise --
     they are not yet cross-wired into a single combined composite (e.g.
@@ -173,9 +191,11 @@ acceptance_criteria:
 - study: transient-diffusion
   behavior: peak-decays
 - study: reaction-diffusion
-  behavior: mass-grows-via-coupling
+  behavior: pattern-emerges
 - study: reaction-diffusion
-  behavior: field-bounded-by-k
+  behavior: pattern-structured-not-blowup
+- study: reaction-diffusion
+  behavior: regimes-differ
 - study: navier-stokes
   behavior: lift-oscillates
 - study: navier-stokes

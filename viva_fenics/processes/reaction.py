@@ -1,14 +1,14 @@
-"""LogisticReactionProcess: a pure-numpy process-bigraph Process implementing
-the logistic growth term ``r*u*(1 - u/K)`` of the Fisher-KPP equation.
+"""Pure-numpy process-bigraph reaction Processes, coupled to
+``DiffusionProcess`` purely through shared bigraph stores -- neither this
+module nor ``diffusion.py`` has any knowledge of the other.
 
-This process has NO knowledge of FEM or of DiffusionProcess -- it only reads
-a "solution" field and writes a "source" field. Coupling to
-``DiffusionProcess`` (which reads "source" as its own input) happens purely
-through the bigraph document wiring both processes to the same
-``stores.source`` / ``stores.solution`` paths (see
-``viva_fenics.composites.reaction_diffusion``), not by either process calling
-into the other. That is the composability property this process exists to
-demonstrate.
+``LogisticReactionProcess`` implements the logistic growth term
+``r*u*(1 - u/K)`` of the Fisher-KPP equation (a single species; see
+``viva_fenics.composites.reaction_diffusion`` for its 2-process coupling).
+``GrayScottReactionProcess`` implements the two-species Gray-Scott feed/kill
+kinetics that, coupled to TWO ``DiffusionProcess`` instances (one per
+species), produce a genuine Turing instability (see
+``viva_fenics.composites.turing_patterns`` for its 3-process coupling).
 """
 
 from __future__ import annotations
@@ -61,3 +61,72 @@ class LogisticReactionProcess(Process):
         K = self.config["K"]
         source = r * u * (1 - u / K)
         return {"source": source}
+
+
+class GrayScottReactionProcess(Process):
+    """Gray-Scott reaction term coupling TWO diffusing species U, V:
+
+        source_u = -U*V^2 + F*(1-U)
+        source_v = +U*V^2 - (F+k)*V
+
+    Like ``LogisticReactionProcess``, this process has NO knowledge of FEM or
+    of ``DiffusionProcess`` -- it only reads "u"/"v" fields and writes
+    "source_u"/"source_v" rate fields. The Turing-pattern coupling (see
+    ``viva_fenics.composites.turing_patterns``) is entirely the document
+    wiring: TWO independent ``DiffusionProcess`` instances (one per species,
+    with differential diffusivities ``Du`` > ``Dv``) each read/write their own
+    species' "solution"/"source" ports against ``stores.u``/``stores.source_u``
+    and ``stores.v``/``stores.source_v`` respectively, while this process
+    reads BOTH ``stores.u``/``stores.v`` and writes BOTH
+    ``stores.source_u``/``stores.source_v`` -- three independently-authored
+    processes, coupled purely by sharing those four stores. That three-way
+    coupling (not two, as in ``LogisticReactionProcess``'s single-species
+    Fisher-KPP pairing) is what makes a genuine 2D Turing instability -- and
+    the spot/stripe/labyrinth patterns it produces -- emerge from
+    composition, not from any one process implementing Gray-Scott itself.
+
+    Inputs
+    ------
+    u, v : array[float]
+        Current absolute nodal fields for each species (the same stores the
+        two ``DiffusionProcess`` instances read/write as their own
+        "solution").
+
+    Outputs
+    -------
+    source_u, source_v : overwrite[array[float]]
+        The instantaneous per-species reaction RATE fields for this tick.
+        ``overwrite`` (replace), not additive -- same rationale as
+        ``LogisticReactionProcess.outputs``'s "source": each
+        ``DiffusionProcess`` multiplies its own source rate by dt internally
+        (``fem.diffusion_step``'s ``(u_n + dt*source)*v*dx``), so this
+        process must NOT also scale by ``interval`` or the reaction would be
+        double-applied; and each store must be REPLACED every tick, not
+        accumulated, or the coupled fields would blow up instead of
+        self-organizing into a bounded Turing pattern.
+    """
+
+    config_schema = {
+        "F": {"_type": "float", "_default": 0.037},
+        "k": {"_type": "float", "_default": 0.06},
+    }
+
+    def inputs(self):
+        return {"u": "array[float]", "v": "array[float]"}
+
+    def outputs(self):
+        return {
+            "source_u": "overwrite[array[float]]",
+            "source_v": "overwrite[array[float]]",
+        }
+
+    def update(self, state, interval):
+        u = np.asarray(state["u"], dtype=float)
+        v = np.asarray(state["v"], dtype=float)
+        F = self.config["F"]
+        k = self.config["k"]
+
+        uvv = u * v * v
+        source_u = -uvv + F * (1.0 - u)
+        source_v = uvv - (F + k) * v
+        return {"source_u": source_u, "source_v": source_v}

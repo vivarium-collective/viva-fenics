@@ -17,7 +17,7 @@ from process_bigraph import allocate_core
 
 from .processes.poisson import PoissonSolverStep
 from .processes.diffusion import DiffusionProcess
-from .processes.reaction import LogisticReactionProcess
+from .processes.reaction import LogisticReactionProcess, GrayScottReactionProcess
 from .processes.flow import NavierStokesProcess, CylinderFlowProcess
 from .processes.moving_boundary import MovingBoundaryProcess
 from .processes.complex_geometry import ComplexGeometryStep
@@ -28,6 +28,7 @@ _PROCESSES = (
     ("PoissonSolverStep", PoissonSolverStep),
     ("DiffusionProcess", DiffusionProcess),
     ("LogisticReactionProcess", LogisticReactionProcess),
+    ("GrayScottReactionProcess", GrayScottReactionProcess),
     ("NavierStokesProcess", NavierStokesProcess),
     ("CylinderFlowProcess", CylinderFlowProcess),
     ("MovingBoundaryProcess", MovingBoundaryProcess),

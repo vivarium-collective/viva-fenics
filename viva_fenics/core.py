@@ -19,6 +19,7 @@ from .processes.poisson import PoissonSolverStep
 from .processes.diffusion import DiffusionProcess
 from .processes.reaction import LogisticReactionProcess
 from .processes.flow import NavierStokesProcess
+from .processes.moving_boundary import MovingBoundaryProcess
 from .types import register_types
 
 # New processes (...) just need an import above and an entry here.
@@ -27,6 +28,7 @@ _PROCESSES = (
     ("DiffusionProcess", DiffusionProcess),
     ("LogisticReactionProcess", LogisticReactionProcess),
     ("NavierStokesProcess", NavierStokesProcess),
+    ("MovingBoundaryProcess", MovingBoundaryProcess),
 )
 
 

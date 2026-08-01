@@ -5,11 +5,13 @@ from viva_fenics.processes.poisson import PoissonSolverStep
 from viva_fenics.processes.diffusion import DiffusionProcess
 from viva_fenics.processes.reaction import LogisticReactionProcess
 from viva_fenics.processes.flow import NavierStokesProcess
+from viva_fenics.processes.moving_boundary import MovingBoundaryProcess
 from viva_fenics.composites.poisson import poisson_baseline
 from viva_fenics.composites.diffusion import transient_diffusion
 from viva_fenics.composites.reaction_diffusion import reaction_diffusion
 from viva_fenics.composites.convergence import mesh_convergence
 from viva_fenics.composites.flow import navier_stokes
+from viva_fenics.composites.moving_boundary import moving_boundary
 from viva_fenics.core import build_core, register_processes
 
 __all__ = [
@@ -17,11 +19,13 @@ __all__ = [
     "DiffusionProcess",
     "LogisticReactionProcess",
     "NavierStokesProcess",
+    "MovingBoundaryProcess",
     "poisson_baseline",
     "transient_diffusion",
     "reaction_diffusion",
     "mesh_convergence",
     "navier_stokes",
+    "moving_boundary",
     "build_core",
     "register_processes",
     "viz",

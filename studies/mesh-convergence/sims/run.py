@@ -12,8 +12,8 @@ Standalone; run from the workspace root::
 """
 from __future__ import annotations
 
-import sys
 import time
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -25,7 +25,11 @@ WORKSPACE_ROOT = STUDY_DIR.parents[1]
 from viva_fenics import viz
 from viva_fenics.core import build_core
 from viva_fenics.composites.convergence import mesh_convergence
-from viva_superpowers.run_registry import register_run
+from vivarium_workbench.lib.run_log import append_run_event
+
+SPEC_ID = "viva_fenics.composites.convergence.mesh_convergence"
+STUDY_SLUG = "mesh-convergence"
+INVESTIGATION_SLUG = "fenics-showcase"
 
 RESOLUTIONS = [8, 16, 32]
 DEGREE = 1
@@ -43,17 +47,51 @@ def _l2_error_at(resolution: int) -> float:
 
 
 def main() -> int:
+    run_id = uuid.uuid4().hex
     started = time.time()
-    errors = [_l2_error_at(res) for res in RESOLUTIONS]
-    h = [1.0 / res for res in RESOLUTIONS]
+    append_run_event(WORKSPACE_ROOT, {
+        "run_id": run_id,
+        "event": "started",
+        "spec_id": SPEC_ID,
+        "label": STUDY_SLUG,
+        "started_at": started,
+        "status": "running",
+        "n_steps": len(RESOLUTIONS),
+        "emitter": "ram",
+        "origin": "canonical_run",
+        "study_slug": STUDY_SLUG,
+        "investigation_slug": INVESTIGATION_SLUG,
+        "params": {"resolutions": RESOLUTIONS, "degree": DEGREE},
+    })
 
-    slope, _intercept = np.polyfit(np.log(h), np.log(errors), 1)
-    rate = float(slope)
+    try:
+        errors = [_l2_error_at(res) for res in RESOLUTIONS]
+        h = [1.0 / res for res in RESOLUTIONS]
 
-    viz_dir = STUDY_DIR / "viz"
-    viz_dir.mkdir(parents=True, exist_ok=True)
-    html = viz.convergence_loglog_html(h, errors)
-    (viz_dir / "convergence.html").write_text(html)
+        slope, _intercept = np.polyfit(np.log(h), np.log(errors), 1)
+        rate = float(slope)
+
+        viz_dir = STUDY_DIR / "viz"
+        viz_dir.mkdir(parents=True, exist_ok=True)
+        html = viz.convergence_loglog_html(h, errors)
+        (viz_dir / "convergence.html").write_text(html)
+    except Exception:
+        append_run_event(WORKSPACE_ROOT, {
+            "run_id": run_id,
+            "event": "completed",
+            "completed_at": time.time(),
+            "n_steps": 0,
+            "status": "failed",
+        })
+        raise
+
+    append_run_event(WORKSPACE_ROOT, {
+        "run_id": run_id,
+        "event": "completed",
+        "completed_at": time.time(),
+        "n_steps": len(RESOLUTIONS),
+        "status": "completed",
+    })
 
     passed = rate >= MIN_RATE
     print(
@@ -62,23 +100,7 @@ def main() -> int:
         f"-> {'PASS' if passed else 'FAIL'} (convergence-rate-matches-order >= {MIN_RATE})"
     )
     print(f"[mesh-convergence] viz written: {viz_dir / 'convergence.html'}")
-
-    try:
-        register_run(
-            STUDY_DIR / "runs.db",
-            run_id=f"convergence-sweep-{int(started)}",
-            spec_id="viva_fenics.composites.convergence.mesh_convergence",
-            status="complete",
-            params={"resolutions": RESOLUTIONS, "degree": DEGREE, "observed_rate": rate},
-            n_steps=len(RESOLUTIONS),
-            started_at=started,
-            completed_at=time.time(),
-            ws_root=WORKSPACE_ROOT,
-            pkg="viva_fenics",
-        )
-        print(f"[mesh-convergence] run recorded in {STUDY_DIR / 'runs.db'}")
-    except Exception as exc:  # noqa: BLE001 -- runs.db recording is best-effort
-        print(f"[mesh-convergence] warning: runs.db registration skipped: {exc}", file=sys.stderr)
+    print(f"[mesh-convergence] run recorded in {WORKSPACE_ROOT / '.pbg' / 'runs.jsonl'}")
 
     return 0 if passed else 1
 

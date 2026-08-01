@@ -18,8 +18,8 @@ Standalone; run from the workspace root::
 """
 from __future__ import annotations
 
-import sys
 import time
+import uuid
 from pathlib import Path
 
 from process_bigraph import Composite, gather_emitter_results
@@ -30,7 +30,11 @@ WORKSPACE_ROOT = STUDY_DIR.parents[1]
 from viva_fenics import fem, viz
 from viva_fenics.core import build_core
 from viva_fenics.composites.reaction_diffusion import reaction_diffusion
-from viva_superpowers.run_registry import register_run
+from vivarium_workbench.lib.run_log import append_run_event
+
+SPEC_ID = "viva_fenics.composites.reaction_diffusion.reaction_diffusion"
+STUDY_SLUG = "reaction-diffusion"
+INVESTIGATION_SLUG = "fenics-showcase"
 
 RESOLUTION = 24
 D = 0.05
@@ -66,32 +70,67 @@ def _run(r: float, run_time: float):
 
 
 def main() -> int:
+    run_id = uuid.uuid4().hex
     started = time.time()
-    integrals_main, solutions_main = _run(R, RUN_TIME)
-    integrals_off, _solutions_off = _run(R_CONTROL, RUN_TIME)
+    n_steps_estimate = int(round(RUN_TIME / DT))
+    append_run_event(WORKSPACE_ROOT, {
+        "run_id": run_id,
+        "event": "started",
+        "spec_id": SPEC_ID,
+        "label": STUDY_SLUG,
+        "started_at": started,
+        "status": "running",
+        "n_steps": n_steps_estimate,
+        "emitter": "ram",
+        "origin": "canonical_run",
+        "study_slug": STUDY_SLUG,
+        "investigation_slug": INVESTIGATION_SLUG,
+        "params": {"resolution": RESOLUTION, "D": D, "r": R, "dt": DT, "run_time": RUN_TIME},
+    })
 
-    growth_main = integrals_main[-1] - integrals_main[0]
-    growth_off = integrals_off[-1] - integrals_off[0]
-    growth_ratio = growth_main / max(abs(growth_off), 1e-12)
-    # PASS/FAIL mirrors this study's declared behavior_tests exactly (only
-    # growth_ratio >= GROWTH_RATIO_MIN is asserted there) -- no additional
-    # undeclared conditions.
-    mass_grows = growth_ratio >= GROWTH_RATIO_MIN
+    try:
+        integrals_main, solutions_main = _run(R, RUN_TIME)
+        integrals_off, _solutions_off = _run(R_CONTROL, RUN_TIME)
 
-    max_field = max(max(s) for s in solutions_main)
-    field_bounded = max_field < FIELD_BOUND
+        growth_main = integrals_main[-1] - integrals_main[0]
+        growth_off = integrals_off[-1] - integrals_off[0]
+        growth_ratio = growth_main / max(abs(growth_off), 1e-12)
+        # PASS/FAIL mirrors this study's declared behavior_tests exactly (only
+        # growth_ratio >= GROWTH_RATIO_MIN is asserted there) -- no additional
+        # undeclared conditions.
+        mass_grows = growth_ratio >= GROWTH_RATIO_MIN
 
-    _, V = fem.build_mesh("unit_square", RESOLUTION, degree=1)
-    coords = fem.node_coords(V)
-    times = [i * DT * EMITTER_SUBSAMPLE for i in range(len(solutions_main))]
+        max_field = max(max(s) for s in solutions_main)
+        field_bounded = max_field < FIELD_BOUND
 
-    viz_dir = STUDY_DIR / "viz"
-    viz_dir.mkdir(parents=True, exist_ok=True)
-    html = viz.field_animation_html(
-        coords, solutions_main, times,
-        f"Fisher-KPP wavefront (D={D}, r={R}, K={K}) -- Diffusion ⊕ LogisticReaction",
-    )
-    (viz_dir / "reaction_diffusion_animation.html").write_text(html)
+        _, V = fem.build_mesh("unit_square", RESOLUTION, degree=1)
+        coords = fem.node_coords(V)
+        times = [i * DT * EMITTER_SUBSAMPLE for i in range(len(solutions_main))]
+
+        viz_dir = STUDY_DIR / "viz"
+        viz_dir.mkdir(parents=True, exist_ok=True)
+        html = viz.field_animation_html(
+            coords, solutions_main, times,
+            f"Fisher-KPP wavefront (D={D}, r={R}, K={K}) -- Diffusion ⊕ LogisticReaction",
+        )
+        (viz_dir / "reaction_diffusion_animation.html").write_text(html)
+    except Exception:
+        append_run_event(WORKSPACE_ROOT, {
+            "run_id": run_id,
+            "event": "completed",
+            "completed_at": time.time(),
+            "n_steps": 0,
+            "status": "failed",
+        })
+        raise
+
+    append_run_event(WORKSPACE_ROOT, {
+        "run_id": run_id,
+        "event": "completed",
+        "completed_at": time.time(),
+        "n_steps": len(solutions_main),
+        "status": "completed",
+    })
 
     print(
         f"[reaction-diffusion] resolution={RESOLUTION} D={D} r={R} vs r_control={R_CONTROL} "
@@ -103,26 +142,7 @@ def main() -> int:
         f"-> {'PASS' if field_bounded else 'FAIL'} (field-bounded-by-k < {FIELD_BOUND})"
     )
     print(f"[reaction-diffusion] viz written: {viz_dir / 'reaction_diffusion_animation.html'}")
-
-    try:
-        register_run(
-            STUDY_DIR / "runs.db",
-            run_id=f"reaction-diffusion-baseline-{int(started)}",
-            spec_id="viva_fenics.composites.reaction_diffusion.reaction_diffusion",
-            status="complete",
-            params={
-                "resolution": RESOLUTION, "D": D, "r": R, "dt": DT,
-                "run_time": RUN_TIME, "growth_ratio": growth_ratio, "max_field": max_field,
-            },
-            n_steps=len(solutions_main),
-            started_at=started,
-            completed_at=time.time(),
-            ws_root=WORKSPACE_ROOT,
-            pkg="viva_fenics",
-        )
-        print(f"[reaction-diffusion] run recorded in {STUDY_DIR / 'runs.db'}")
-    except Exception as exc:  # noqa: BLE001 -- runs.db recording is best-effort
-        print(f"[reaction-diffusion] warning: runs.db registration skipped: {exc}", file=sys.stderr)
+    print(f"[reaction-diffusion] run recorded in {WORKSPACE_ROOT / '.pbg' / 'runs.jsonl'}")
 
     return 0 if (mass_grows and field_bounded) else 1
 

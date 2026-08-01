@@ -429,26 +429,20 @@ def main() -> None:
     if n_investigations > 3:
         inv_names_preview += f", ... (+{n_investigations - 3} more)"
 
-    # Count runs (by checking for runs.db files)
+    # Count runs (workbench #612: workspace-level append-only .pbg/runs.jsonl
+    # run log, folded to the latest event per run_id -- NOT per-study runs.db)
     n_active_runs = 0
     n_completed_runs = 0
-    for runs_db in (_dir("studies")).glob("*/runs.db"):
-        try:
-            import sqlite3
-            conn = sqlite3.connect(str(runs_db))
-            try:
-                cur = conn.execute("SELECT status FROM runs")
-                for (row_status,) in cur.fetchall():
-                    if row_status in ("running", "pending"):
-                        n_active_runs += 1
-                    elif row_status == "completed":
-                        n_completed_runs += 1
-            except Exception:
-                pass
-            finally:
-                conn.close()
-        except Exception:
-            pass
+    try:
+        from vivarium_workbench.lib.run_log import fold_runs_jsonl
+        for run in fold_runs_jsonl(WS_ROOT).values():
+            run_status = run.get("status")
+            if run_status in ("running", "pending"):
+                n_active_runs += 1
+            elif run_status == "completed":
+                n_completed_runs += 1
+    except Exception:
+        pass
 
     # v2ecoli friction #2: `_type: 'any'` is not a registered bigraph-schema
     # type; it slips through inline python composite builds but explodes

@@ -12,8 +12,8 @@ Standalone; run from the workspace root::
 """
 from __future__ import annotations
 
-import sys
 import time
+import uuid
 from pathlib import Path
 
 from process_bigraph import Composite, gather_emitter_results
@@ -24,7 +24,11 @@ WORKSPACE_ROOT = STUDY_DIR.parents[1]
 from viva_fenics import fem, viz
 from viva_fenics.core import build_core
 from viva_fenics.composites.diffusion import transient_diffusion
-from viva_superpowers.run_registry import register_run
+from vivarium_workbench.lib.run_log import append_run_event
+
+SPEC_ID = "viva_fenics.composites.diffusion.transient_diffusion"
+STUDY_SLUG = "transient-diffusion"
+INVESTIGATION_SLUG = "fenics-showcase"
 
 RESOLUTION = 32
 D = 0.1
@@ -41,41 +45,75 @@ MASS_DRIFT_TOLERANCE = 0.05
 
 
 def main() -> int:
+    run_id = uuid.uuid4().hex
     started = time.time()
-    core = build_core()
-    doc = transient_diffusion(core, resolution=RESOLUTION, D=D, dt=DT)
-    sim = Composite({"state": doc}, core=core)
-    sim.run(RUN_TIME)
+    append_run_event(WORKSPACE_ROOT, {
+        "run_id": run_id,
+        "event": "started",
+        "spec_id": SPEC_ID,
+        "label": STUDY_SLUG,
+        "started_at": started,
+        "status": "running",
+        "n_steps": N_TICKS,
+        "emitter": "ram",
+        "origin": "canonical_run",
+        "study_slug": STUDY_SLUG,
+        "investigation_slug": INVESTIGATION_SLUG,
+        "params": {"resolution": RESOLUTION, "D": D, "dt": DT, "run_time": RUN_TIME},
+    })
 
-    rows = gather_emitter_results(sim)[("emitter",)]
-    solutions = [
-        row["solution"] for row in rows
-        if row.get("solution") is not None and len(row["solution"]) > 0
-    ]
-    # The emitter fires once before the process has ticked at all (so
-    # "integral" is still its unset 0.0 default) and once per tick
-    # thereafter; filter on truthiness to isolate post-tick readings (same
-    # convention as tests/test_diffusion.py).
-    integrals = [row["integral"] for row in rows if row.get("integral")]
+    try:
+        core = build_core()
+        doc = transient_diffusion(core, resolution=RESOLUTION, D=D, dt=DT)
+        sim = Composite({"state": doc}, core=core)
+        sim.run(RUN_TIME)
 
-    _, V = fem.build_mesh("unit_square", RESOLUTION, degree=1)
-    coords = fem.node_coords(V)
-    times = [i * TICK_INTERVAL for i in range(len(solutions))]
+        rows = gather_emitter_results(sim)[("emitter",)]
+        solutions = [
+            row["solution"] for row in rows
+            if row.get("solution") is not None and len(row["solution"]) > 0
+        ]
+        # The emitter fires once before the process has ticked at all (so
+        # "integral" is still its unset 0.0 default) and once per tick
+        # thereafter; filter on truthiness to isolate post-tick readings (same
+        # convention as tests/test_diffusion.py).
+        integrals = [row["integral"] for row in rows if row.get("integral")]
 
-    viz_dir = STUDY_DIR / "viz"
-    viz_dir.mkdir(parents=True, exist_ok=True)
-    html = viz.field_animation_html(
-        coords, solutions, times,
-        f"Transient diffusion of a gaussian bump (D={D}, dt={DT})",
-    )
-    (viz_dir / "diffusion_animation.html").write_text(html)
+        _, V = fem.build_mesh("unit_square", RESOLUTION, degree=1)
+        coords = fem.node_coords(V)
+        times = [i * TICK_INTERVAL for i in range(len(solutions))]
 
-    peak0, peakN = max(solutions[0]), max(solutions[-1])
-    peak_decays = peakN < peak0
+        viz_dir = STUDY_DIR / "viz"
+        viz_dir.mkdir(parents=True, exist_ok=True)
+        html = viz.field_animation_html(
+            coords, solutions, times,
+            f"Transient diffusion of a gaussian bump (D={D}, dt={DT})",
+        )
+        (viz_dir / "diffusion_animation.html").write_text(html)
 
-    mass0, massN = integrals[0], integrals[-1]
-    mass_drift = abs(massN - mass0) / abs(mass0)
-    mass_conserved = mass_drift < MASS_DRIFT_TOLERANCE
+        peak0, peakN = max(solutions[0]), max(solutions[-1])
+        peak_decays = peakN < peak0
+
+        mass0, massN = integrals[0], integrals[-1]
+        mass_drift = abs(massN - mass0) / abs(mass0)
+        mass_conserved = mass_drift < MASS_DRIFT_TOLERANCE
+    except Exception:
+        append_run_event(WORKSPACE_ROOT, {
+            "run_id": run_id,
+            "event": "completed",
+            "completed_at": time.time(),
+            "n_steps": 0,
+            "status": "failed",
+        })
+        raise
+
+    append_run_event(WORKSPACE_ROOT, {
+        "run_id": run_id,
+        "event": "completed",
+        "completed_at": time.time(),
+        "n_steps": N_TICKS,
+        "status": "completed",
+    })
 
     print(
         f"[transient-diffusion] resolution={RESOLUTION} D={D} dt={DT} "
@@ -88,23 +126,7 @@ def main() -> int:
         f"(mass-conserved < {MASS_DRIFT_TOLERANCE:.0%})"
     )
     print(f"[transient-diffusion] viz written: {viz_dir / 'diffusion_animation.html'}")
-
-    try:
-        register_run(
-            STUDY_DIR / "runs.db",
-            run_id=f"diffusion-baseline-{int(started)}",
-            spec_id="viva_fenics.composites.diffusion.transient_diffusion",
-            status="complete",
-            params={"resolution": RESOLUTION, "D": D, "dt": DT, "run_time": RUN_TIME},
-            n_steps=N_TICKS,
-            started_at=started,
-            completed_at=time.time(),
-            ws_root=WORKSPACE_ROOT,
-            pkg="viva_fenics",
-        )
-        print(f"[transient-diffusion] run recorded in {STUDY_DIR / 'runs.db'}")
-    except Exception as exc:  # noqa: BLE001 -- runs.db recording is best-effort
-        print(f"[transient-diffusion] warning: runs.db registration skipped: {exc}", file=sys.stderr)
+    print(f"[transient-diffusion] run recorded in {WORKSPACE_ROOT / '.pbg' / 'runs.jsonl'}")
 
     return 0 if (peak_decays and mass_conserved) else 1
 

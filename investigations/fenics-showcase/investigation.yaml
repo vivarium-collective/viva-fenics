@@ -27,8 +27,9 @@ description: |
   `LogisticReactionProcess` into the same `stores.solution` / `stores.source`
   paths and shows Fisher-KPP-like mass growth emerges from that wiring alone
   -- the composability property the whole investigation exists to
-  demonstrate. Runs are authored here (Task 7); execution into `runs.db`
-  plus behavior-test evaluation happens in Task 8.
+  demonstrate. Runs are authored here (Task 7); execution recorded into
+  the workspace's `.pbg/runs.jsonl` run log plus behavior-test evaluation
+  happens in Task 8.
 
 studies:
 - poisson-validation
@@ -59,9 +60,9 @@ executive:
     Task 7 scope: author the investigation + 4 studies + runners and get them
     lint-clean and individually executable (done -- see each study's printed
     PASS/FAIL line above). Task 8 scope (not yet done): drive these same
-    runners through `/viva-study run-script` so results land in each study's
-    tracked `runs.db` and the dashboard's Tests tab reflects the behavior
-    tests declared below.
+    runners through `/viva-study run-script` so results land in the
+    workspace's `.pbg/runs.jsonl` run log and the dashboard's Tests tab
+    reflects the behavior tests declared below.
   decisions_needed: []
 
 scientific_argument:
@@ -94,9 +95,9 @@ scientific_argument:
     resolution/rate sweeps in mesh-convergence and reaction-diffusion is
     untested."
   - "Behavior tests are authored (Task 7) but not yet run through the
-    dashboard's Tests tab against a tracked runs.db (Task 8), so the PASS/FAIL
-    verdicts above come from the runner scripts' own printed checks, not the
-    dashboard's evaluator."
+    dashboard's Tests tab against the workspace's `.pbg/runs.jsonl` run log
+    (Task 8), so the PASS/FAIL verdicts above come from the runner scripts'
+    own printed checks, not the dashboard's evaluator."
   key_figures: []
   caveats:
   - "The coupling composability claim is demonstrated for one process pair

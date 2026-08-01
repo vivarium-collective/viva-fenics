@@ -474,7 +474,7 @@ composability + visual claim the other studies build up to.
     <h3>Model <span class="muted" style="font-size:0.85em;font-weight:normal">— the composite(s) this study simulates</span></h3>
     <p class="muted" style="font-size:0.88em">Each row runs one composite. Below it: the composite address (open it in the bigraph-loom explorer), the resolved configuration that actually executes, and the run settings.</p>
     
-    <div class="cond-block" data-model-composite="viva_fenics.composites.turing_patterns.turing_patterns" data-model-overrides='{"Du": 2e-05, "Dv": 1e-05, "F": 0.037, "dt": 1.0, "k": 0.06, "resolution": 96}'>
+    <div class="cond-block" data-model-composite="viva_fenics.composites.turing_patterns.turing_patterns" data-model-overrides='{"Du": 2e-05, "Dv": 1e-05, "F": 0.037, "dt": 1.0, "k": 0.06, "resolution": 128}'>
       <div class="cond-block-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <strong>turing-baseline</strong>
         
@@ -643,7 +643,7 @@ composability + visual claim the other studies build up to.
           <a href="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_labyrinth_final.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Final V field, labyrinth regime (F=0.03, k=0.06) -- a visibly different morphology from the baseline.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Final V field, labyrinth regime (F=0.03, k=0.06) -- 40 disconnected regions, a mature labyrinth topology visibly different from the baseline&#39;s single connected blob.</p>
         
         <iframe src="/viva-fenics/dashboard/studies/reaction-diffusion/viz/turing_pattern_labyrinth_final.html"
                 style="width:100%;min-height:200px;border:0;display:block"
@@ -772,7 +772,7 @@ start.
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
         <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "growth_ratio", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The committed production run (resolution=96, 6000 ticks, dt=1.0) achieved growth=10.5x (var(V) 0.00111 -\u003e 0.01169); 5.0 leaves ~2.1x headroom below that while still catching a \"reaction never actually coupled in\" regression (which produces order-1 growth from quadrature noise alone, per the analogous check in ``reaction_diffusion``\u0027s Fisher-KPP study)."}, "value": 5.0}</pre>
+pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The committed extended production run (resolution=128, 18000 ticks, dt=1.0) achieved growth=10.2x; 5.0 leaves ~2x headroom below that while still catching a \"reaction never actually coupled in\" regression (which produces order-1 growth from quadrature noise alone, per the analogous check in ``reaction_diffusion``\u0027s Fisher-KPP study)."}, "value": 5.0}</pre>
       </details>
       
       
@@ -813,7 +813,7 @@ U/V fields must stay within (-0.5, 1.5).
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
         <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "coverage_fraction", "kind": "derived_scalar"}
-pass_if: {"high": 0.7, "low": 0.1, "op": "in_range", "provenance": {"kind": "calibration", "note": "The committed production run\u0027s baseline achieved coverage=0.483 (V in [0.004, 0.367], comfortably bounded); [0.1, 0.7] brackets that with headroom on both sides while still catching \"pattern never really emerged\" (near 0) or \"whole domain saturated/blew up\" (near 1). The field-bound half of this check mirrors the FAST unit tests\u0027 (-0.5, 1.5) band, itself the accumulate-vs-overwrite regression guard (see ``tests/test_turing_patterns.py``)."}}</pre>
+pass_if: {"high": 0.7, "low": 0.1, "op": "in_range", "provenance": {"kind": "calibration", "note": "The committed extended production run\u0027s baseline achieved coverage=0.480 (comfortably bounded, no blow-up); [0.1, 0.7] brackets that with headroom on both sides while still catching \"pattern never really emerged\" (near 0) or \"whole domain saturated/blew up\" (near 1). The field-bound half of this check mirrors the FAST unit tests\u0027 (-0.5, 1.5) band, itself the accumulate-vs-overwrite regression guard (see ``tests/test_turing_patterns.py``)."}}</pre>
       </details>
       
       
@@ -853,7 +853,7 @@ must be at least 0.1.
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
         <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "coverage_spread", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The committed production run achieved coverage 0.483 (baseline) / 0.290 (labyrinth) / 0.148 (stripes) -- a spread of 0.336. 0.1 leaves ~3.4x headroom below that while still catching a \"regimes don\u0027t actually differ\" regression. Coverage is partly confounded by the variants\u0027 smaller step budget/coarser mesh (an explicit, disclosed wall-time tradeoff -- see the study report); the labyrinth regime\u0027s connected-component count (9, vs 1 for the other two regimes) is a second, less-confounded topological signal of the same claim, not gated on here only because it isn\u0027t defined identically enough across regimes for a clean numeric threshold."}, "value": 0.1}</pre>
+pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The committed extended production run achieved coverage 0.480 (baseline) / 0.301 (labyrinth) / 0.497 (stripes) -- a spread of 0.196. 0.1 leaves ~2x headroom below that while still catching a \"regimes don\u0027t actually differ\" regression. Coverage is still partly confounded by the labyrinth/stripes variants running at a coarser mesh than the baseline (an explicit, disclosed wall-time tradeoff -- see the study report); the labyrinth regime\u0027s connected-component count (40, vs 1 for the other two regimes) is a second, less-confounded topological signal of the same claim, not gated on here only because it isn\u0027t defined identically enough across regimes for a clean numeric threshold."}, "value": 0.1}</pre>
       </details>
       
       
@@ -979,7 +979,7 @@ pass_if: {"op": "\u003e=", "provenance": {"kind": "calibration", "note": "The co
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "7a442a5790a377e9901af40278ae87cfd7a8f99e", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/7a442a5790a377e9901af40278ae87cfd7a8f99e", "branch": "main", "generated_at": "2026-08-01 18:03 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "reaction-diffusion";

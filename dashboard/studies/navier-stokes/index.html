@@ -615,7 +615,7 @@ studies.
           <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_vorticity.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Animated vorticity field -- the von Karman vortex street shedding off the cylinder, alternating positive/negative lobes in the wake.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Animated vorticity field -- the von Karman vortex street shedding off the cylinder, alternating positive/negative lobes in the wake, now run to a saturated limit cycle (T_PROD=8.0s).</p>
         
         <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_vorticity.html"
                 style="width:100%;min-height:200px;border:0;display:block"
@@ -630,7 +630,7 @@ studies.
           <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/drag_lift_timeseries.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Drag/lift coefficient vs simulated time -- Cl visibly oscillates (std=0.41) once shedding establishes.</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Drag/lift coefficient vs simulated time -- Cl visibly oscillates and saturates (std=0.736, Cl_max=1.066) once shedding establishes.</p>
         
         <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/drag_lift_timeseries.html"
                 style="width:100%;min-height:200px;border:0;display:block"
@@ -645,7 +645,7 @@ studies.
           <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_velocity.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly streamlines of the wake velocity field at the end of the production run (t=3.0s).</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly streamlines of the wake velocity field at the end of the production run (t=8.0s).</p>
         
         <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_velocity.html"
                 style="width:100%;min-height:200px;border:0;display:block"
@@ -660,7 +660,7 @@ studies.
           <a href="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_pressure.html" target="_blank" class="btn-mini">Open in new tab ↗</a>
         </div>
         
-        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the pressure field at the end of the production run (t=3.0s).</p>
+        <p class="muted" style="margin:6px 12px;font-size:0.88em">Interactive Plotly heatmap of the pressure field at the end of the production run (t=8.0s).</p>
         
         <iframe src="/viva-fenics/dashboard/studies/navier-stokes/viz/vortex_street_pressure.html"
                 style="width:100%;min-height:200px;border:0;display:block"
@@ -774,7 +774,7 @@ startup transient) must exceed 0.15.
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
         <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "cl_std_analysis_window", "kind": "derived_scalar"}
-pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "0.15 sits well above the ~1e-3 lift-coefficient noise floor observed during the ramp-phase transient in development, and comfortably below the production run\u0027s achieved std(Cl)=0.41 (analysis window t=1.5-3.0s), so it cleanly separates \"no shedding\" from the real shedding this run produced."}, "value": 0.15}</pre>
+pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "0.15 sits well above the ~1e-3 lift-coefficient noise floor observed during the ramp-phase transient in development, and comfortably below the extended production run\u0027s achieved std(Cl)=0.736 (T_PROD=8.0s analysis window, saturated limit cycle), so it cleanly separates \"no shedding\" from the real shedding this run produced."}, "value": 0.15}</pre>
       </details>
       
       
@@ -807,7 +807,7 @@ pass_if: {"op": "\u003e", "provenance": {"kind": "calibration", "note": "0.15 si
         
       </div>
       <div style="margin-top: 6px; font-size: 0.95em;">mean(drag_coeff) over the analysis window must land in [2.7, 3.6],
-bracketing the achieved Cd_mean=3.03 and close to the DFG 2D-2
+bracketing the achieved Cd_mean=3.168 and close to the DFG 2D-2
 benchmark&#39;s Cd_max~=3.22-3.24.
 </div>
       
@@ -815,7 +815,7 @@ benchmark&#39;s Cd_max~=3.22-3.24.
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
         <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "cd_mean_analysis_window", "kind": "derived_scalar"}
-pass_if: {"high": 3.6, "low": 2.7, "op": "in_range", "provenance": {"kind": "calibration", "note": "Schafer/Turek DFG 2D-2 reference Cd_max~=3.22-3.24 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the production run\u0027s achieved Cd_mean=3.03 / Cd_max=3.15 (~3-6% below reference) on this solver\u0027s feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- i.e. calibrated to the observed result with headroom, not derived from theory alone."}}</pre>
+pass_if: {"high": 3.6, "low": 2.7, "op": "in_range", "provenance": {"kind": "calibration", "note": "Schafer/Turek DFG 2D-2 reference Cd_max~=3.22-3.24 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the extended production run\u0027s achieved Cd_mean=3.168 / Cd_max=3.204 (within ~1-2% of reference) on this solver\u0027s feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- i.e. calibrated to the observed result with headroom, not derived from theory alone."}}</pre>
       </details>
       
       
@@ -849,14 +849,14 @@ pass_if: {"high": 3.6, "low": 2.7, "op": "in_range", "provenance": {"kind": "cal
       </div>
       <div style="margin-top: 6px; font-size: 0.95em;">The Strouhal number (Hann-windowed, parabolic-interpolated FFT peak of
 the lift-coefficient signal) over the analysis window must land in
-[0.25, 0.40], bracketing the achieved St~=0.31 +/- 0.07.
+[0.25, 0.40], bracketing the achieved St=0.30 +/- 0.02.
 </div>
       
       
       <details style="margin-top: 6px; font-size: 0.82em;">
         <summary class="muted" style="cursor: pointer;">Assertion</summary>
         <pre style="background:#fff; padding:8px; margin:4px 0 0 0; border:1px solid #e2e8f0; border-radius:3px; overflow-x:auto;">measure: {"field": "strouhal_number", "kind": "derived_scalar"}
-pass_if: {"high": 0.4, "low": 0.25, "op": "in_range", "provenance": {"kind": "calibration", "note": "Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the production run\u0027s achieved St~=0.31 +/- 0.07 (the uncertainty is the FFT\u0027s own bin-resolution floor over the ~1.5s/ ~5-cycle analysis window, not an error bar on the underlying physics) -- i.e. calibrated to the observed result with headroom, not derived from theory alone."}}</pre>
+pass_if: {"high": 0.4, "low": 0.25, "op": "in_range", "provenance": {"kind": "calibration", "note": "Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100) is the target this band is drawn near, but the band itself was fit around the extended production run\u0027s achieved St=0.30 +/- 0.02 (shedding f=3.023 Hz; the uncertainty is the FFT\u0027s own bin-resolution floor over the T_PROD=8.0s/~12-cycle analysis window, not an error bar on the underlying physics) -- i.e. calibrated to the observed result with headroom, not derived from theory alone."}}</pre>
       </details>
       
       
@@ -982,7 +982,7 @@ pass_if: {"high": 0.4, "low": 0.25, "op": "in_range", "provenance": {"kind": "ca
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/206a44ccdaf11989ae2d7f26567aacdbc81cccb6", "branch": "main", "generated_at": "2026-08-01 12:58 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/dashboard", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "7a442a5790a377e9901af40278ae87cfd7a8f99e", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/7a442a5790a377e9901af40278ae87cfd7a8f99e", "branch": "main", "generated_at": "2026-08-01 18:03 UTC"} };</script>
 <script src="/viva-fenics/dashboard/assets/data-source.js"></script>
 <script>
 window._studyName = "navier-stokes";

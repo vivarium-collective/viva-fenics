@@ -26,9 +26,13 @@ pixi run pytest -q    # sanity-check: run the test suite
 Everything below is invoked via `pixi run <command>` so it executes inside the
 resolved environment.
 
-## The 7 composite generators
+## The composite generators
 
-Each generator builds one pbg composite wrapping a real dolfinx solve:
+Each generator builds one pbg composite wrapping a real dolfinx solve. Seven
+map 1:1 onto the seven studies below; `navier_stokes` (the original
+lid-driven-cavity IPCS demo) is kept as a standalone, still-tested generator
+even though the `navier-stokes` *study* now runs the harder `vortex_street`
+benchmark instead:
 
 | Generator | Module | What it solves |
 |---|---|---|
@@ -36,7 +40,8 @@ Each generator builds one pbg composite wrapping a real dolfinx solve:
 | `mesh_convergence` | `viva_fenics.composites.convergence` | Poisson solved across a resolution sweep, for an O(h²) convergence check |
 | `transient_diffusion` | `viva_fenics.composites.diffusion` | Time-stepped (backward-Euler) diffusion of an initial field |
 | `reaction_diffusion` | `viva_fenics.composites.reaction_diffusion` | `DiffusionProcess` ⊕ `LogisticReactionProcess` coupled through shared bigraph stores |
-| `navier_stokes` | `viva_fenics.composites.flow` | Lid-driven cavity flow, P2/P1 velocity-pressure, IPCS operator splitting |
+| `vortex_street` | `viva_fenics.composites.flow` | Von Karman vortex street past a cylinder (DFG 2D-2 benchmark), gmsh-generated cylinder-refined mesh, P2/P1 velocity-pressure, IPCS operator splitting, real drag/lift surface-force integral |
+| `navier_stokes` | `viva_fenics.composites.flow` | (standalone, not used by a study) Lid-driven cavity flow, P2/P1 velocity-pressure, IPCS operator splitting |
 | `moving_boundary` | `viva_fenics.composites.moving_boundary` | Diffusion on a prescribed-ALE deforming mesh, re-solved every substep |
 | `complex_geometry` | `viva_fenics.composites.complex_geometry` | Poisson solved on gmsh-built non-rectangular domains (obstacle / L-shape / annulus) |
 
@@ -63,9 +68,10 @@ push into fluids, deforming domains, and non-trivial geometry:
    and `LogisticReactionProcess` through shared bigraph stores; Fisher-KPP-like
    mass growth emerges purely from that wiring, with neither process aware of
    the other.
-5. **`navier-stokes`** *(advanced)* — lid-driven cavity flow to quasi-steady
-   state, checked for an approximately divergence-free velocity field and
-   stability across a Reynolds-number sweep.
+5. **`navier-stokes`** *(advanced)* — a von Karman vortex street: flow past
+   an off-center cylinder in a channel (the DFG 2D-2 benchmark), checked for
+   a genuinely oscillating lift coefficient and a drag coefficient /
+   Strouhal number in the neighborhood of the published reference values.
 6. **`moving-boundary`** *(advanced)* — diffusion on a domain whose boundary
    follows a prescribed law (ALE mesh motion), checked against the analytic
    boundary trajectory.

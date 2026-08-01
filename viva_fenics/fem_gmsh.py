@@ -193,6 +193,123 @@ def solve_poisson_gmsh(domain, V, source_value=1.0):
     return uh.x.array.copy()
 
 
+# ---------------------------------------------------------------------------
+# DFG 2D-2 benchmark geometry: channel with an off-center cylinder
+# ---------------------------------------------------------------------------
+
+# Schafer/Turek "DFG 2D-2" benchmark dimensions (meters, nondimensional units
+# in this solver): a 2.2 x 0.41 channel with a radius-0.05 cylinder centered
+# at (0.2, 0.2) -- 0.005 above the channel centerline (0.205), which is what
+# breaks top/bottom symmetry and lets the wake shed asymmetrically without
+# needing an artificial perturbation.
+CHANNEL_LENGTH = 2.2
+CHANNEL_HEIGHT = 0.41
+CYLINDER_CENTER = (0.2, 0.2)
+CYLINDER_RADIUS = 0.05
+
+# Facet-tag marker values used by the imported MeshTags (also the
+# `physical_groups` name -> (dim, tag) mapping's tag half) -- exposed so
+# ``viva_fenics.processes.flow`` can locate boundary facets by name without
+# hardcoding the integers gmsh happened to assign.
+CHANNEL_CYLINDER_MARKERS = {"fluid": 1, "inflow": 2, "outflow": 3, "walls": 4, "cylinder": 5}
+
+
+def _build_channel_cylinder_model(h_cylinder, h_far):
+    """Build the DFG 2D-2 channel-with-cylinder gmsh OCC model: a rectangle
+    minus a circular disk, with 4 tagged boundary curves (inflow/outflow/
+    walls/cylinder) and a graded mesh-size field that refines to
+    ``h_cylinder`` near the cylinder and relaxes to ``h_far`` away from it
+    (the accuracy driver for resolving vortex shedding in the wake).
+    """
+    L, H = CHANNEL_LENGTH, CHANNEL_HEIGHT
+    cx, cy = CYLINDER_CENTER
+    r = CYLINDER_RADIUS
+
+    gmsh.model.add("channel_cylinder")
+    rect = gmsh.model.occ.addRectangle(0, 0, 0, L, H)
+    disk = gmsh.model.occ.addDisk(cx, cy, 0, r, r)
+    cut, _ = gmsh.model.occ.cut([(2, rect)], [(2, disk)])
+    gmsh.model.occ.synchronize()
+    surf_tag = cut[0][1]
+    gmsh.model.addPhysicalGroup(2, [surf_tag], tag=CHANNEL_CYLINDER_MARKERS["fluid"], name="fluid")
+
+    # Classify the 5 boundary curves (4 straight rectangle sides + 1 circle)
+    # by bounding box -- robust to whatever tags OCC happened to assign, and
+    # to OCC representing a straight side as one curve or several.
+    boundary = gmsh.model.getBoundary([(2, surf_tag)], oriented=False)
+    inflow, outflow, walls, cylinder = [], [], [], []
+    tol = 1e-5
+    for dim, tag in boundary:
+        xmin, ymin, _zmin, xmax, ymax, _zmax = gmsh.model.getBoundingBox(dim, tag)
+        if np.isclose(xmin, 0.0, atol=tol) and np.isclose(xmax, 0.0, atol=tol):
+            inflow.append(tag)
+        elif np.isclose(xmin, L, atol=tol) and np.isclose(xmax, L, atol=tol):
+            outflow.append(tag)
+        elif (np.isclose(ymin, 0.0, atol=tol) and np.isclose(ymax, 0.0, atol=tol)) or (
+            np.isclose(ymin, H, atol=tol) and np.isclose(ymax, H, atol=tol)
+        ):
+            walls.append(tag)
+        else:
+            cylinder.append(tag)
+
+    gmsh.model.addPhysicalGroup(1, inflow, tag=CHANNEL_CYLINDER_MARKERS["inflow"], name="inflow")
+    gmsh.model.addPhysicalGroup(1, outflow, tag=CHANNEL_CYLINDER_MARKERS["outflow"], name="outflow")
+    gmsh.model.addPhysicalGroup(1, walls, tag=CHANNEL_CYLINDER_MARKERS["walls"], name="walls")
+    gmsh.model.addPhysicalGroup(1, cylinder, tag=CHANNEL_CYLINDER_MARKERS["cylinder"], name="cylinder")
+
+    # Graded size field: SizeMin near the cylinder (DistMin=4r), SizeMax far
+    # from it (beyond DistMax=15r, which reaches well into the downstream
+    # wake where the vortex street forms), linear ramp between. Disable
+    # gmsh's default boundary-driven sizing so this field has full control.
+    gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)
+    gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
+    gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
+    gmsh.model.mesh.field.add("Distance", 1)
+    gmsh.model.mesh.field.setNumbers(1, "CurvesList", [float(t) for t in cylinder])
+    gmsh.model.mesh.field.add("Threshold", 2)
+    gmsh.model.mesh.field.setNumber(2, "InField", 1)
+    gmsh.model.mesh.field.setNumber(2, "SizeMin", h_cylinder)
+    gmsh.model.mesh.field.setNumber(2, "SizeMax", h_far)
+    gmsh.model.mesh.field.setNumber(2, "DistMin", 4 * r)
+    gmsh.model.mesh.field.setNumber(2, "DistMax", 15 * r)
+    gmsh.model.mesh.field.setAsBackgroundMesh(2)
+
+    gmsh.model.mesh.generate(2)
+
+
+def build_channel_cylinder_mesh(h_cylinder=0.01, h_far=0.06):
+    """Build the DFG 2D-2 benchmark channel-with-cylinder mesh and import it
+    into dolfinx with tagged boundary facets.
+
+    Args:
+        h_cylinder: target mesh element size right at the cylinder boundary
+            (the accuracy driver -- must be small enough to resolve the
+            boundary layer/shed vortices; DFG-quality accuracy wants
+            ``h_cylinder`` around D/10-D/20, i.e. 0.005-0.01).
+        h_far: target mesh element size far from the cylinder (channel
+            inlet/outlet/walls), coarser to keep the total cell count down.
+
+    Returns:
+        (domain, facet_tags, markers) tuple: a real dolfinx ``Mesh`` (from
+        the gmsh-generated unstructured triangulation), a ``MeshTags`` over
+        exterior facets whose ``.values`` match ``CHANNEL_CYLINDER_MARKERS``,
+        and that markers dict itself (``{"inflow": 2, "outflow": 3,
+        "walls": 4, "cylinder": 5, "fluid": 1}``) for locating facets by
+        name (e.g. ``facet_tags.find(markers["cylinder"])``).
+    """
+    gmsh.initialize()
+    try:
+        gmsh.option.setNumber("General.Terminal", 0)
+        _build_channel_cylinder_model(h_cylinder, h_far)
+        mesh_data = dgmsh.model_to_mesh(gmsh.model, MPI.COMM_WORLD, 0, gdim=2)
+        domain = mesh_data.mesh
+        facet_tags = mesh_data.facet_tags
+    finally:
+        gmsh.finalize()
+
+    return domain, facet_tags, dict(CHANNEL_CYLINDER_MARKERS)
+
+
 def node_coords(V):
     """Return dof coordinates for V, shape (N, 2)."""
     return V.tabulate_dof_coordinates()[:, :2]

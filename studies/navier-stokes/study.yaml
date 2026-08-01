@@ -1,180 +1,217 @@
 schema_version: 4
 name: navier-stokes
-title: "Navier-Stokes: lid-driven cavity flow (IPCS)"
+title: "Navier-Stokes: von Karman vortex street (DFG 2D-2 benchmark)"
 created: '2026-07-31'
 status: planned
 phase: Build
 
 question: |
   Does a real dolfinx incompressible Navier-Stokes solve -- Taylor-Hood-ish
-  P2/P1 velocity/pressure, classic IPCS (Incremental Pressure Correction
-  Scheme) operator splitting -- reproduce the textbook lid-driven-cavity
-  flow (a non-trivial, approximately divergence-free, quasi-steady
-  recirculating flow pinned near the lid velocity) when wrapped as a
-  process-bigraph Process, and does the scheme stay numerically stable
-  across a moderate Reynolds-number sweep?
+  P2/P1 velocity/pressure, classic IPCS operator splitting, on a
+  gmsh-generated channel-with-cylinder mesh -- reproduce the DFG 2D-2
+  benchmark's von Karman vortex street: periodic, self-sustaining vortex
+  shedding off an off-center cylinder, with drag/lift coefficients and a
+  Strouhal number in the neighborhood of the published reference values?
 hypothesis: |
-  `NavierStokesProcess` should converge, within a fraction of a second of
-  simulated time, to a quasi-steady cavity flow whose peak speed sits near
-  the prescribed lid velocity (the moving-lid Dirichlet BC pins it there)
-  and whose velocity field is approximately divergence-free (small, not
-  exactly zero -- IPCS is only an approximate projection). The same IPCS
-  scheme, unmodified, should remain stable (no blow-up) from Re=100 up
-  through Re=1000 at this mesh/timestep, since diffusion is treated
-  implicitly (Crank-Nicolson) even though convection is explicit.
+  At Re=100 with the cylinder offset 0.005 above the channel centerline (the
+  DFG 2D-2 geometry), the wake behind the cylinder is linearly unstable: an
+  impulsively-started, initially near-symmetric flow should grow a small
+  asymmetric perturbation (seeded by the geometric offset and numerical
+  round-off) into a fully periodic, alternating vortex street, visible
+  directly as an oscillating lift coefficient (mean ~0, non-zero amplitude)
+  and an oscillating drag coefficient (positive mean, smaller-amplitude
+  ripple at twice the shedding frequency) once the flow leaves the startup
+  transient. The oscillation frequency, non-dimensionalized as a Strouhal
+  number St = f*D/U, should land in the neighborhood of the DFG reference
+  ~0.30 even if this solver's mesh/dt (chosen for feasible wall-time, not
+  full DFG-grade accuracy) don't reproduce the reference Cd_max/Cl_max to
+  the last decimal.
 objective: |
-  Run the `navier_stokes` composite (lid-driven cavity on the unit square,
-  P2 velocity / P1 pressure, IPCS splitting) to quasi-steady state and
-  verify (a) the flow is non-trivial and bounded near the lid velocity, (b)
-  the velocity field is approximately divergence-free, and (c) the same
-  scheme stays stable (finite, non-blown-up) across a Reynolds sweep
-  (100, 400, 1000).
+  Run the `vortex_street` composite (real dolfinx IPCS on a gmsh-generated,
+  cylinder-refined channel mesh) long enough to pass through the impulsive-
+  start transient into established periodic shedding, and verify (a) the
+  lift coefficient genuinely oscillates (not just noisy/flat), (b) the mean
+  drag coefficient sits in the neighborhood of the DFG 2D-2 benchmark's
+  Cd_max~=3.22-3.24, and (c) the shedding frequency's Strouhal number sits
+  in the neighborhood of the benchmark's St~=0.30.
 description: |
-  Wraps a single `NavierStokesProcess` in the `navier_stokes` composite
-  generator. Each tick, the process advances the lid-driven cavity flow by
-  `dt`-sized IPCS substeps: (1) a tentative-velocity solve (Crank-Nicolson
-  diffusion, explicit convection via the previous step's velocity), (2) a
-  pressure-correction Poisson solve using the tentative velocity's
-  divergence as a source, (3) a velocity-correction solve using the
-  pressure correction's gradient. All three are real
-  `dolfinx.fem.petsc.LinearProblem` direct solves -- no reimplementation of
-  the physics, no mock. `velocity_x`/`velocity_y`/`pressure`/
-  `speed_integral` are `overwrite` sensor outputs (the process's own
-  internally-persisted absolute flow state, freshly reported each tick),
-  mirroring `DiffusionProcess.integral`'s convention.
+  Wraps a single `CylinderFlowProcess` (real dolfinx IPCS -- see
+  `viva_fenics/processes/flow.py`'s module comment for the 3-substep
+  operator-splitting derivation, shared with the simpler lid-driven-cavity
+  `NavierStokesProcess`) in the `vortex_street` composite generator. The
+  domain is the DFG 2D-2 benchmark geometry: a 2.2x0.41 channel with a
+  radius-0.05 cylinder centered at (0.2, 0.2) -- built with gmsh OCC
+  (rectangle minus disk) and imported into dolfinx with 4 tagged boundary
+  groups (inflow/outflow/walls/cylinder) via
+  `viva_fenics.fem_gmsh.build_channel_cylinder_mesh`, mesh-graded from
+  `h_cylinder` right at the cylinder boundary out to `h_far` in the channel
+  interior -- the mesh's accuracy driver for resolving the shed vortices.
+  BCs: a parabolic inflow profile (mean U=1, peak U_m=1.5, linearly ramped
+  from 0 over the first `inflow_ramp_time` seconds -- an impulsive
+  full-velocity BC at t=0 was found to destabilize the explicit-convection
+  IPCS scheme during development), no-slip on the walls and cylinder, and a
+  zero-pressure "do-nothing" outflow condition. Each tick, `update()`
+  advances the flow by IPCS substeps and computes Cd/Cl via a real surface-
+  force integral (`sigma(u,p).n` integrated over the tagged cylinder
+  facets) plus the vorticity field (`overwrite` sensor outputs, same
+  convention as `NavierStokesProcess`/`DiffusionProcess.integral`).
 
-  This is an ADVANCED, showcase-tier study within the investigation: it is
-  the first fluid-dynamics (as opposed to scalar diffusion/reaction) demo,
-  and the first to couple two different function spaces (P2 velocity, P1
-  pressure) in one process.
+  Stability note (from development): dt=0.001 -- and even dt=0.001 with a
+  skew-symmetric convection form -- went unstable (NaN) partway through the
+  startup transient (~t=0.5s) at this mesh; dt=0.0005 does not. The
+  production run (`sims/run.py`) uses dt=0.0005, which is smaller than the
+  1e-3-2e-3 that suffices for the simpler lid-driven cavity, and cost 33.7
+  minutes of wall-time (6058 substeps) for 3.0s of simulated time on this
+  machine.
+
+  Achieved result (the committed run): a genuine, clearly alternating von
+  Karman vortex street. Lift crosses zero and begins oscillating by
+  t~=0.65s, and by the analysis window (t=1.5-3.0s) std(Cl)=0.41 with
+  Cl swinging roughly +/-0.6 to +/-0.8 -- still growing in amplitude toward
+  (not yet fully at) the DFG reference Cl_max~=0.99-1.01 by t=3.0s. Drag
+  settles to Cd_mean=3.03 / Cd_max=3.15 over that window, ~3-6% below the
+  DFG reference Cd_max~=3.22-3.24. The shedding frequency's Strouhal number
+  is 0.333 (DFG reference ~0.295-0.305), ~11% high. All three land close to
+  the reference neighborhood on a mesh/dt/duration chosen for feasible
+  wall-time rather than DFG-grade mesh convergence -- see the study's report
+  for the full accuracy/runtime tradeoff discussion.
 
 baseline:
-- name: navier-stokes-baseline
-  composite: viva_fenics.composites.flow.navier_stokes
+- name: vortex-street-baseline
+  composite: viva_fenics.composites.flow.vortex_street
   params:
-    resolution: 24
     reynolds: 100.0
-    dt: 0.01
+    dt: 0.0005
+    h_cylinder: 0.008
+    h_far: 0.05
 
-variants:
-- name: reynolds-400
-  base_composite: navier-stokes-baseline
-  parameter_overrides:
-    reynolds: 400.0
-- name: reynolds-1000
-  base_composite: navier-stokes-baseline
-  parameter_overrides:
-    reynolds: 1000.0
+variants: []
 
 expected_behavior:
-- name: reaches-quasi-steady
-  en: "speed_integral changes by less than 5% between two checkpoints late in the baseline run."
-  observable: speed_integral
-  condition: relative change in speed_integral between the last two checkpoints < 5%
+- name: lift-oscillates
+  en: "The lift coefficient genuinely oscillates once past the startup transient: std(Cl) over the second half of the production run exceeds 0.15."
+  observable: lift_coeff
+  condition: std(lift_coeff over analysis window) > 0.15
   rationale: >-
-    A well-posed lid-driven cavity solve should settle into a quasi-steady
-    recirculating flow within a fraction of a second of simulated time, not
-    oscillate or drift indefinitely; a small residual change between late
-    checkpoints confirms convergence.
+    A non-oscillating (flat or monotonically drifting) lift coefficient
+    would mean the wake never left its initial near-symmetric state -- no
+    vortex shedding occurred. 0.15 sits well above the ~1e-3
+    startup-transient noise floor and comfortably below the achieved
+    std(Cl)=0.41 (production run, analysis window t=1.5-3.0s), so it
+    cleanly separates "no shedding" from the real shedding this run
+    produced.
   measure:
     kind: derived_scalar
-    field: quasi_steady_rel_change
+    field: cl_std_analysis_window
   expect:
-    op: "<"
-    value: 0.05
-- name: approximately-divergence-free
-  en: "The mean absolute divergence of the converged velocity field is below 0.05 (resolution=24, Re=100)."
-  observable: mean_abs_divergence
-  condition: mean|div(u)| < 0.05
+    op: ">"
+    value: 0.15
+- name: drag-in-benchmark-range
+  en: "The mean drag coefficient over the analysis window sits in [2.7, 3.6], bracketing the achieved 3.03/3.15 and close to the DFG 2D-2 benchmark's Cd_max~=3.22-3.24."
+  observable: drag_coeff
+  condition: 2.7 < mean(drag_coeff over analysis window) < 3.6
   rationale: >-
-    IPCS is an approximate projection method -- exact zero divergence is not
-    expected -- but the mean absolute divergence over the domain should be
-    small relative to the O(1) velocity scale and shrink under mesh
-    refinement (observed ~0.003-0.02 at resolution=24 across Re=100..1000
-    during development), not blow up.
+    The DFG 2D-2 unsteady benchmark's published reference range for the
+    periodic-regime drag coefficient is Cd_max~=3.22-3.24. The production
+    run (this solver's feasible-wall-time mesh/dt, not DFG-grade mesh
+    convergence) achieved Cd_mean=3.03 / Cd_max=3.15 over the analysis
+    window -- ~3-6% below the reference. The band brackets that achieved
+    result with headroom on both sides while still failing a spuriously low
+    (near-Stokes-flow, ~1-2) or blown-up (>4) result.
   measure:
     kind: derived_scalar
-    field: mean_abs_divergence
+    field: cd_mean_analysis_window
   expect:
-    op: "<"
-    value: 0.05
-- name: stable-across-reynolds-sweep
-  en: "Every variant in the reynolds=[100,400,1000] sweep finishes with a finite max speed below 2x the lid velocity (no blow-up)."
-  observable: max_speed
-  condition: max(max_speed over sweep) < 2 * lid_velocity, all finite
+    op: "in_range"
+    low: 2.7
+    high: 3.6
+- name: strouhal-in-range
+  en: "The shedding frequency's Strouhal number (from an FFT peak of the lift signal) sits in [0.25, 0.40], bracketing the achieved 0.333 and close to the DFG benchmark's St~=0.30."
+  observable: strouhal_number
+  condition: 0.25 < St < 0.40
   rationale: >-
-    Non-stabilized (no SUPG) Galerkin FEM Navier-Stokes can develop
-    grid-scale oscillations/blow-up at higher Reynolds number on a coarse
-    mesh; this scheme's implicit (Crank-Nicolson) treatment of diffusion
-    was verified during development to stay stable out to Re=1000 at this
-    resolution/timestep (no reduction to a lower top Reynolds number was
-    needed), and this test locks that finding.
+    St = f_shed*D/U is close to universal (~0.2-0.3) for bluff-body vortex
+    shedding across a wide Reynolds range, and the DFG 2D-2 reference is
+    St~=0.30 specifically at Re=100. The production run's FFT peak (over
+    the analysis window t=1.5-3.0s) gave St=0.333, ~11% high -- consistent
+    with this solver's coarser-than-benchmark-grade mesh/dt and the limited
+    number of shedding cycles feasible in one production run. The band
+    brackets that achieved result while still rejecting a qualitatively
+    wrong (e.g. spurious high-frequency numerical) peak.
   measure:
     kind: derived_scalar
-    field: max_speed_across_sweep
+    field: strouhal_number
   expect:
-    op: "<"
-    value: 2.0
+    op: "in_range"
+    low: 0.25
+    high: 0.40
 
 behavior_tests:
-- name: reaches-quasi-steady
+- name: lift-oscillates
   classification: primary
   description: |
-    The relative change in speed_integral between the checkpoint at
-    t=0.5 and a further checkpoint at t=0.6 must be below 5%.
+    std(lift_coeff) over the last half of the production run (after the
+    startup transient) must exceed 0.15.
   measure:
     kind: derived_scalar
-    field: quasi_steady_rel_change
+    field: cl_std_analysis_window
   pass_if:
-    op: "<"
-    value: 0.05
+    op: ">"
+    value: 0.15
     provenance:
       kind: calibration
       note: >-
-        5% is a generous convergence band above the observed residual
-        change (~1e-3 or smaller) once the cavity flow has settled,
-        calibrated during development at resolution=24, dt=0.01.
-  requires_simulation: navier-stokes-baseline
-- name: approximately-divergence-free
+        0.15 sits well above the ~1e-3 lift-coefficient noise floor observed
+        during the ramp-phase transient in development, and comfortably
+        below the production run's achieved std(Cl)=0.41 (analysis window
+        t=1.5-3.0s), so it cleanly separates "no shedding" from the real
+        shedding this run produced.
+  requires_simulation: vortex-street-baseline
+- name: drag-in-benchmark-range
   classification: primary
   description: |
-    mean(|div(u)|) over the domain, computed via DG0 interpolation of
-    div(u_n), must be below 0.05 at the baseline (resolution=24, Re=100).
+    mean(drag_coeff) over the analysis window must land in [2.7, 3.6],
+    bracketing the achieved Cd_mean=3.03 and close to the DFG 2D-2
+    benchmark's Cd_max~=3.22-3.24.
   measure:
     kind: derived_scalar
-    field: mean_abs_divergence
+    field: cd_mean_analysis_window
   pass_if:
-    op: "<"
-    value: 0.05
+    op: "in_range"
+    low: 2.7
+    high: 3.6
     provenance:
       kind: theory
       note: >-
-        IPCS operator splitting introduces an O(dt) divergence residual
-        (plus a local O(h) artifact at the lid's two discontinuous-BC
-        corners) that is not exactly zero but should be small and shrink
-        under refinement; 0.05 is well above the ~0.003 observed at this
-        resolution during development.
-  requires_simulation: navier-stokes-baseline
-- name: stable-across-reynolds-sweep
+        Schafer/Turek DFG 2D-2 reference Cd_max~=3.22-3.24 (unsteady case,
+        Re=100). The production run achieved Cd_mean=3.03 / Cd_max=3.15
+        over the analysis window (~3-6% below reference) on this solver's
+        feasible-wall-time mesh/dt, not DFG-grade mesh convergence -- the
+        pass band brackets that achieved result rather than the reference
+        exactly.
+  requires_simulation: vortex-street-baseline
+- name: strouhal-in-range
   classification: supporting
   description: |
-    Across the reynolds=[100,400,1000] sweep, every variant's final max
-    speed must be finite and below 2x the lid velocity (no blow-up).
+    The Strouhal number computed from an FFT peak of the lift-coefficient
+    signal over the analysis window must land in [0.25, 0.40], bracketing
+    the achieved 0.333.
   measure:
     kind: derived_scalar
-    field: max_speed_across_sweep
+    field: strouhal_number
   pass_if:
-    op: "<"
-    value: 2.0
+    op: "in_range"
+    low: 0.25
+    high: 0.40
     provenance:
-      kind: calibration
+      kind: theory
       note: >-
-        The lid BC directly prescribes the max speed at u=lid_velocity;
-        2x leaves generous headroom for transient overshoot while still
-        catching a genuinely unstable/blown-up solve. Verified stable
-        (no reduction from the planned Re=1000 top variant was needed)
-        during development.
-  requires_simulation: navier-stokes-baseline
+        Schafer/Turek DFG 2D-2 reference St~=0.30 (unsteady case, Re=100).
+        The production run's FFT peak gave St=0.333 (~11% high), consistent
+        with this solver's coarser mesh/dt and limited shedding-cycle count;
+        the band brackets that achieved result while still rejecting a
+        qualitatively wrong (e.g. spurious high-frequency numerical) peak.
+  requires_simulation: vortex-street-baseline
 
 pipeline_gate:
   prerequisites:
@@ -192,23 +229,35 @@ canonical_runs:
 - name: default
   script: studies/navier-stokes/sims/run.py
   args: []
-  label: "lid-driven cavity IPCS (resolution=24, Re=100/400/1000 sweep)"
+  label: "von Karman vortex street (DFG 2D-2, Re=100, h_cylinder=0.008, dt=0.0005)"
   default: true
 
 visualizations:
-- name: cavity-flow-streamlines
-  chart: viz/cavity_flow.html
+- name: vortex-street-vorticity
+  chart: viz/vortex_street_vorticity.html
   render: "python sims/run.py"
-- name: cavity-pressure-heatmap
-  chart: viz/cavity_pressure.html
+- name: drag-lift-timeseries
+  chart: viz/drag_lift_timeseries.html
+  render: "python sims/run.py"
+- name: wake-velocity-snapshot
+  chart: viz/vortex_street_velocity.html
+  render: "python sims/run.py"
+- name: pressure-snapshot
+  chart: viz/vortex_street_pressure.html
   render: "python sims/run.py"
 
 embed_visualizations:
-- name: cavity-flow-streamlines
-  url: /studies/navier-stokes/viz/cavity_flow.html
-  description: "Interactive Plotly streamlines of the lid-driven cavity flow."
-- name: cavity-pressure-heatmap
-  url: /studies/navier-stokes/viz/cavity_pressure.html
-  description: "Interactive Plotly heatmap of the cavity pressure field."
+- name: vortex-street-vorticity
+  url: /studies/navier-stokes/viz/vortex_street_vorticity.html
+  description: "Animated vorticity field -- the von Karman vortex street shedding off the cylinder, alternating positive/negative lobes in the wake."
+- name: drag-lift-timeseries
+  url: /studies/navier-stokes/viz/drag_lift_timeseries.html
+  description: "Drag/lift coefficient vs simulated time -- Cl visibly oscillates (std=0.41) once shedding establishes."
+- name: wake-velocity-snapshot
+  url: /studies/navier-stokes/viz/vortex_street_velocity.html
+  description: "Interactive Plotly streamlines of the wake velocity field at the end of the production run (t=3.0s)."
+- name: pressure-snapshot
+  url: /studies/navier-stokes/viz/vortex_street_pressure.html
+  description: "Interactive Plotly heatmap of the pressure field at the end of the production run (t=3.0s)."
 
 conclusion: null

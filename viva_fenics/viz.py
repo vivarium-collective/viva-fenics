@@ -477,6 +477,50 @@ def convergence_loglog_html(h, errors):
 
 
 # ---------------------------------------------------------------------------
+# 3b. coefficient_timeseries_html
+# ---------------------------------------------------------------------------
+
+def coefficient_timeseries_html(times, series, title, y_label="value"):
+    """Two-line (or N-line) time-series chart -- e.g. drag/lift coefficient
+    vs simulated time, showing an oscillation (periodic vortex shedding)
+    directly as a wiggling line, unlike a single converged-scalar readout.
+
+    Args:
+        times: (T,) sequence of simulated-time values (x axis).
+        series: dict of {label: (T,) values} -- plotted in insertion order,
+            colored by the dataviz categorical palette (``SERIES``).
+        title: card title.
+        y_label: y-axis title (e.g. "coefficient").
+    """
+    times = np.asarray(times, dtype=float)
+
+    fig = go.Figure()
+    for i, (label, values) in enumerate(series.items()):
+        values = np.asarray(values, dtype=float)
+        color = SERIES[i % len(SERIES)]
+        fig.add_trace(
+            go.Scatter(
+                x=times,
+                y=values,
+                mode="lines",
+                name=label,
+                meta=f"series-{i + 1}",
+                line=dict(color=color, width=2),
+                hovertemplate=f"t=%{{x:.4g}}<br>{label}=%{{y:.4g}}<extra></extra>",
+            )
+        )
+
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left", font=dict(size=16, color="#0b0b0b")),
+        xaxis=dict(title=dict(text="t (simulated time)", font=dict(color="#52514e"))),
+        yaxis=dict(title=dict(text=y_label, font=dict(color="#52514e"))),
+        legend=dict(font=dict(color="#52514e")),
+        margin=dict(l=70, r=30, t=50, b=50),
+    )
+    return _finish(fig, height=420)
+
+
+# ---------------------------------------------------------------------------
 # 4. quiver_streamlines_html
 # ---------------------------------------------------------------------------
 

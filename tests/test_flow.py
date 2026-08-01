@@ -166,3 +166,147 @@ def test_zero_fields_matches_velocity_coords_length():
     coords = velocity_coords(RESOLUTION)
     assert len(vx0) == len(vy0) == coords.shape[0]
     assert np.all(vx0 == 0.0) and np.all(vy0 == 0.0) and np.all(p0 == 0.0)
+
+
+# =============================================================================
+# CylinderFlowProcess (DFG 2D-2 vortex-street benchmark) -- small
+# COARSE-mesh/short-duration behavior tests for pytest speed; the full
+# shedding-accuracy production run lives in
+# studies/navier-stokes/sims/run.py, not here (see that script for the
+# achieved Cd/Cl/Strouhal vs the DFG reference values).
+# =============================================================================
+
+from viva_fenics.processes.flow import (
+    CylinderFlowProcess,
+    channel_velocity_coords,
+    zero_channel_fields,
+)
+from viva_fenics import fem_gmsh
+
+# Deliberately coarse -- these tests check wiring/correctness, not
+# shedding-accuracy (which needs the fine near-cylinder mesh + long run
+# time documented in studies/navier-stokes/sims/run.py).
+TEST_H_CYLINDER = 0.03
+TEST_H_FAR = 0.15
+TEST_DT = 0.002
+
+
+def _fresh_cylinder_process(reynolds=100.0, dt=TEST_DT):
+    core = allocate_core()
+    p = CylinderFlowProcess(
+        config={
+            "h_cylinder": TEST_H_CYLINDER,
+            "h_far": TEST_H_FAR,
+            "reynolds": reynolds,
+            "dt": dt,
+        },
+        core=core,
+    )
+    perturbation = p.initial_state()["inflow_perturbation"]
+    return p, perturbation
+
+
+def test_channel_cylinder_mesh_has_tagged_boundaries():
+    """The gmsh-generated channel-with-cylinder mesh must import with a
+    non-trivial cell count and every one of the 4 tagged boundary facet
+    groups (inflow/outflow/walls/cylinder) populated -- if the bounding-box
+    classification in ``fem_gmsh._build_channel_cylinder_model`` ever
+    misclassifies a boundary curve, one of these groups silently comes back
+    empty and BCs/the drag-lift integral would apply to nothing.
+    """
+    domain, facet_tags, markers = fem_gmsh.build_channel_cylinder_mesh(
+        TEST_H_CYLINDER, TEST_H_FAR
+    )
+    assert fem_gmsh.n_cells(domain) > 0
+    for name in ("inflow", "outflow", "walls", "cylinder"):
+        n_facets = len(facet_tags.find(markers[name]))
+        assert n_facets > 0, f"boundary group {name!r} has no tagged facets"
+
+
+def test_cylinder_flow_produces_nontrivial_bounded_velocity():
+    """A DFG-benchmark channel flow should produce a non-trivial velocity
+    field (something actually happened, driven by the parabolic inflow)
+    that stays bounded (no blow-up) over a short ramp-phase interval.
+    """
+    p, perturbation = _fresh_cylinder_process()
+    out = p.update({"inflow_perturbation": perturbation}, interval=0.02)  # 10 substeps
+
+    vx = np.asarray(out["velocity_x"])
+    vy = np.asarray(out["velocity_y"])
+    speed = np.sqrt(vx**2 + vy**2)
+
+    assert np.all(np.isfinite(vx)) and np.all(np.isfinite(vy))
+    assert speed.max() > 0.01, "flow should be non-trivial, not near-zero"
+    assert speed.max() < 10.0, "max speed should stay bounded, not blow up"
+    assert np.all(np.isfinite(out["pressure"]))
+    assert np.all(np.isfinite(out["vorticity"]))
+
+
+def test_cylinder_flow_approximately_incompressible():
+    """Same approximate-incompressibility check as the lid-driven-cavity
+    IPCS process (``divergence_stats`` is domain-agnostic -- it only needs
+    ``(domain, V, u_array)``) -- IPCS operator splitting on the channel
+    mesh should also produce a small (not exactly zero) mean divergence.
+    """
+    p, perturbation = _fresh_cylinder_process()
+    p.update({"inflow_perturbation": perturbation}, interval=0.02)
+
+    mean_div, _max_div = divergence_stats(p._domain, p._V, p._u_n.x.array)
+    assert mean_div < 1.0, f"mean|div(u)| unexpectedly large: {mean_div}"
+
+
+def test_cylinder_flow_drag_lift_finite_and_plausible_sign():
+    """Cd/Cl (real surface-force integral over the tagged cylinder
+    boundary) must come back finite, and drag must be positive -- the
+    fluid pushes the cylinder downstream (+x), never upstream, for this
+    unidirectional inflow.
+    """
+    p, perturbation = _fresh_cylinder_process()
+    out = p.update({"inflow_perturbation": perturbation}, interval=0.02)
+
+    assert np.isfinite(out["drag_coeff"])
+    assert np.isfinite(out["lift_coeff"])
+    assert out["drag_coeff"] > 0.0, "drag should push the cylinder downstream (+x)"
+
+
+def test_cylinder_flow_generator_registered():
+    from viva_superpowers.composite_generator import _REGISTRY
+    assert any(e.endswith(".vortex_street") for e in _REGISTRY)
+
+
+def test_vortex_street_composite_outputs_do_not_accumulate():
+    """Regression: velocity_x/velocity_y/pressure/vorticity/drag_coeff/
+    lift_coeff/elapsed_time must be `overwrite` sensor outputs -- same
+    accumulate-vs-overwrite bug class as
+    ``test_navier_stokes_composite_outputs_do_not_accumulate``.
+    """
+    from process_bigraph import Composite, gather_emitter_results
+
+    from viva_fenics.composites.flow import vortex_street
+
+    core = allocate_core()
+    core.register_link("CylinderFlowProcess", CylinderFlowProcess)
+
+    document = vortex_street(
+        core=core, reynolds=100.0, dt=TEST_DT,
+        h_cylinder=TEST_H_CYLINDER, h_far=TEST_H_FAR,
+    )
+    sim = Composite({"state": document}, core=core)
+    sim.run(0.01)  # several process ticks (interval=dt=0.002 -> 5 ticks)
+
+    rows = gather_emitter_results(sim)[("emitter",)]
+    drags = [row["drag_coeff"] for row in rows if row.get("drag_coeff")]
+    assert len(drags) > 1, "expected multiple post-tick emitted readings"
+
+    # An accumulating bug would make later readings grow roughly linearly
+    # tick-over-tick; a correctly overwritten sensor should instead stay
+    # the same order of magnitude, not multiply by N.
+    first, last = abs(drags[0]), abs(drags[-1])
+    assert last < 10 * max(first, 1e-6), "drag_coeff looks like it's accumulating, not overwriting"
+
+
+def test_zero_channel_fields_matches_velocity_coords_length():
+    vx0, vy0, p0, omega0 = zero_channel_fields(TEST_H_CYLINDER, TEST_H_FAR)
+    coords = channel_velocity_coords(TEST_H_CYLINDER, TEST_H_FAR)
+    assert len(vx0) == len(vy0) == coords.shape[0]
+    assert np.all(vx0 == 0.0) and np.all(vy0 == 0.0) and np.all(p0 == 0.0) and np.all(omega0 == 0.0)

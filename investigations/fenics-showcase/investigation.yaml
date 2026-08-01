@@ -29,9 +29,12 @@ description: |
   `stores.source` paths and shows Fisher-KPP-like mass growth emerges from
   that wiring alone -- the composability property the core of the
   investigation exists to demonstrate. Three ADVANCED studies extend the
-  showcase beyond scalar diffusion/reaction: `navier-stokes` is the first
-  fluid-dynamics demo (lid-driven cavity, IPCS operator splitting, coupled
-  P2/P1 velocity-pressure spaces); `moving-boundary` is the first
+  showcase beyond scalar diffusion/reaction: `navier-stokes` is the
+  fluid-dynamics showpiece -- a von Karman vortex street (the DFG 2D-2
+  benchmark: flow past an off-center cylinder in a channel, gmsh-generated
+  cylinder-refined mesh, IPCS operator splitting, coupled P2/P1
+  velocity-pressure spaces, real surface-force-integral drag/lift);
+  `moving-boundary` is the first
   deforming-domain demo (prescribed-ALE mesh motion re-solved every
   substep); `complex-geometry` is the first non-rectangular-domain demo
   (gmsh-constructed obstacle/L-shape/annulus topologies imported into
@@ -68,8 +71,9 @@ executive:
     rate ~2.00 (mesh-convergence, P1 -> O(h^2)), mass conserved with a
     decaying peak (transient-diffusion), reaction-driven mass growth
     ~2.6e9x the near-zero-reaction control while the field stays bounded
-    near K=1.0 (reaction-diffusion), a quasi-steady, approximately
-    divergence-free lid-driven cavity flow stable across Re=100..1000
+    near K=1.0 (reaction-diffusion), a von Karman vortex street shedding off
+    an off-center cylinder with oscillating drag/lift in the neighborhood of
+    the DFG 2D-2 benchmark's reference Cd/Cl/Strouhal
     (navier-stokes), a deforming-mesh diffusion solve whose boundary tracks
     the prescribed law to near machine precision with a domain measure that
     scales with amplitude (moving-boundary), and finite, bounded,
@@ -117,11 +121,13 @@ scientific_argument:
     (r=1e-9, identical wiring) run for the same duration -- the growth is
     attributable to the composed reaction term, not solver noise -- while the
     field stays bounded near the logistic carrying capacity K=1.0."
-  - "navier-stokes: the lid-driven cavity reaches quasi-steady state (<5%
-    residual change in speed_integral between late checkpoints), the
-    converged velocity field is approximately divergence-free
-    (mean|div(u)| ~0.003-0.02), and the IPCS scheme stays stable (no
-    blow-up) across a Re=[100,400,1000] sweep."
+  - "navier-stokes: flow past an off-center cylinder (DFG 2D-2 benchmark,
+    Re=100) sheds a genuine von Karman vortex street -- the lift coefficient
+    oscillates once past the impulsive-start transient, the mean drag
+    coefficient lands in the neighborhood of the DFG reference
+    (Cd_max~=3.22-3.24), and the shedding frequency's Strouhal number lands
+    in the neighborhood of the DFG reference (St~=0.30); see the study's
+    report for the exact achieved values and production-run wall-time."
   - "moving-boundary: boundary_position tracks the prescribed oscillation
     law to near machine precision, the FEM-assembled domain_measure's swing
     scales with oscillation amplitude across an amplitude sweep, and the
@@ -134,9 +140,12 @@ scientific_argument:
   - "All seven studies use a single fixed random-free deterministic setup
     (one resolution/degree/parameter point per study beyond the declared
     sweeps); broader parameter robustness beyond the declared sweeps
-    (resolution in mesh-convergence, rate in reaction-diffusion, Reynolds
-    in navier-stokes, amplitude/mode in moving-boundary, geometry in
-    complex-geometry) is untested."
+    (resolution in mesh-convergence, rate in reaction-diffusion,
+    amplitude/mode in moving-boundary, geometry in complex-geometry) is
+    untested. navier-stokes in particular is a single production run at
+    one mesh/dt/duration chosen for feasible wall-time, not a mesh- or
+    dt-convergence study -- see its report for the accuracy/runtime
+    tradeoff made."
   - "Behavior tests are authored (Tasks 7, 9-11) but not yet run through the
     dashboard's Tests tab against the workspace's `.pbg/runs.jsonl` run log
     (Task 8), so the PASS/FAIL verdicts above come from the runner scripts'
@@ -168,11 +177,11 @@ acceptance_criteria:
 - study: reaction-diffusion
   behavior: field-bounded-by-k
 - study: navier-stokes
-  behavior: reaches-quasi-steady
+  behavior: lift-oscillates
 - study: navier-stokes
-  behavior: approximately-divergence-free
+  behavior: drag-in-benchmark-range
 - study: navier-stokes
-  behavior: stable-across-reynolds-sweep
+  behavior: strouhal-in-range
 - study: moving-boundary
   behavior: boundary-follows-prescribed-law
 - study: moving-boundary

@@ -11,7 +11,7 @@ from .poisson import poisson_baseline
 from .diffusion import transient_diffusion
 from .reaction_diffusion import reaction_diffusion
 from .convergence import mesh_convergence
-from .flow import navier_stokes
+from .flow import navier_stokes, vortex_street
 from .moving_boundary import moving_boundary
 from .complex_geometry import complex_geometry
 
@@ -21,6 +21,7 @@ __all__ = [
     "reaction_diffusion",
     "mesh_convergence",
     "navier_stokes",
+    "vortex_street",
     "moving_boundary",
     "complex_geometry",
 ]

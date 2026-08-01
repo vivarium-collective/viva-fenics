@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from viva_superpowers.composite_generator import composite_generator
 
-from viva_fenics.processes.flow import zero_fields
+from viva_fenics.processes.flow import zero_fields, zero_channel_fields
 
 
 @composite_generator(
@@ -76,6 +76,96 @@ def navier_stokes(core=None, *, reynolds=100.0, resolution=32, dt=0.01):
                 "velocity_y": ["stores", "velocity_y"],
                 "pressure": ["stores", "pressure"],
                 "speed_integral": ["stores", "speed_integral"],
+            },
+        },
+    }
+
+
+@composite_generator(
+    name="vortex_street",
+    description=(
+        "DFG 2D-2 benchmark -- incompressible flow past an off-center "
+        "cylinder in a channel (real dolfinx IPCS on a gmsh-generated, "
+        "cylinder-refined mesh); at Re=100 the wake sheds a von Karman "
+        "vortex street with oscillating drag/lift."
+    ),
+    parameters={
+        "reynolds": {"type": "number", "default": 100.0,
+                      "description": "Reynolds number (U_mean * cylinder_diameter / nu)"},
+        "dt": {"type": "number", "default": 0.0005,
+                "description": (
+                    "IPCS substep timestep size -- 0.0005, not the 0.001-0.002 "
+                    "that suffices for the lid-driven-cavity study: at this "
+                    "cylinder-refined mesh + Re=100, dt=0.001 (and even a "
+                    "skew-symmetric convection form at dt=0.001) went unstable "
+                    "(NaN) partway through the startup transient (~t=0.5s, "
+                    "confirmed empirically during development); dt=0.0005 does not."
+                )},
+        "h_cylinder": {"type": "number", "default": 0.008,
+                        "description": "Mesh element size at the cylinder boundary (accuracy driver)"},
+        "h_far": {"type": "number", "default": 0.05,
+                   "description": "Mesh element size far from the cylinder (channel inlet/outlet/walls)"},
+    },
+)
+def vortex_street(core=None, *, reynolds=100.0, dt=0.0005, h_cylinder=0.008, h_far=0.05):
+    velocity_x0, velocity_y0, pressure0, vorticity0 = zero_channel_fields(h_cylinder, h_far)
+
+    return {
+        "flow": {
+            "_type": "process",
+            "address": "local:CylinderFlowProcess",
+            "config": {
+                "h_cylinder": h_cylinder,
+                "h_far": h_far,
+                "reynolds": reynolds,
+                "dt": dt,
+            },
+            "inputs": {
+                "inflow_perturbation": ["stores", "inflow_perturbation"],
+            },
+            "outputs": {
+                "velocity_x": ["stores", "velocity_x"],
+                "velocity_y": ["stores", "velocity_y"],
+                "pressure": ["stores", "pressure"],
+                "vorticity": ["stores", "vorticity"],
+                "drag_coeff": ["stores", "drag_coeff"],
+                "lift_coeff": ["stores", "lift_coeff"],
+                "elapsed_time": ["stores", "elapsed_time"],
+            },
+            "interval": dt,
+        },
+        "stores": {
+            "inflow_perturbation": 0.0,
+            "velocity_x": velocity_x0.tolist(),
+            "velocity_y": velocity_y0.tolist(),
+            "pressure": pressure0.tolist(),
+            "vorticity": vorticity0.tolist(),
+            "drag_coeff": 0.0,
+            "lift_coeff": 0.0,
+            "elapsed_time": 0.0,
+        },
+        "emitter": {
+            "_type": "step",
+            "address": "local:RAMEmitter",
+            "config": {
+                "emit": {
+                    "velocity_x": "array[float]",
+                    "velocity_y": "array[float]",
+                    "pressure": "array[float]",
+                    "vorticity": "array[float]",
+                    "drag_coeff": "float",
+                    "lift_coeff": "float",
+                    "elapsed_time": "float",
+                },
+            },
+            "inputs": {
+                "velocity_x": ["stores", "velocity_x"],
+                "velocity_y": ["stores", "velocity_y"],
+                "pressure": ["stores", "pressure"],
+                "vorticity": ["stores", "vorticity"],
+                "drag_coeff": ["stores", "drag_coeff"],
+                "lift_coeff": ["stores", "lift_coeff"],
+                "elapsed_time": ["stores", "elapsed_time"],
             },
         },
     }

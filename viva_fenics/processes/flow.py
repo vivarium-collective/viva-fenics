@@ -59,6 +59,8 @@ from mpi4py import MPI
 from petsc4py import PETSc
 from process_bigraph import Process
 
+from viva_fenics import fem_gmsh
+
 # Unique-ish petsc_options_prefix per solve, same pattern as
 # viva_fenics.fem's module-level counter (see that module's docstring for
 # why dolfinx 0.11's LinearProblem needs this).
@@ -367,3 +369,388 @@ class NavierStokesProcess(Process):
             "pressure": pressure,
             "speed_integral": speed_integral,
         }
+
+
+# =============================================================================
+# CylinderFlowProcess: DFG 2D-2 benchmark -- von Karman vortex street
+# =============================================================================
+#
+# Same IPCS scheme as NavierStokesProcess (see that class's docstring for the
+# 3-substep operator-splitting derivation), on a different, harder domain: a
+# gmsh-generated channel with an off-center cylindrical obstacle
+# (``viva_fenics.fem_gmsh.build_channel_cylinder_mesh``) instead of the unit
+# square, with tagged inflow/outflow/walls/cylinder boundaries driving 4
+# distinct boundary conditions instead of the cavity's uniform-lid BC, plus a
+# real surface-force integral over the cylinder boundary for drag/lift.
+#
+# This is the DFG 2D-2 (Schafer/Turek) unsteady benchmark: a parabolic
+# inflow (mean U=1, peak U_m=1.5) past a radius-0.05 cylinder centered
+# (0.2, 0.2) in a 2.2x0.41 channel at nu=1e-3 (Re = U*D/nu = 100). At this
+# Reynolds number and off-center placement, the wake is unstable and sheds
+# alternating vortices (a von Karman vortex street) -- the flow never
+# reaches a steady state; drag oscillates around a mean and lift oscillates
+# symmetrically about zero once shedding is established, at the Strouhal
+# frequency (St = f*D/U ~ 0.30 at Re=100 per the DFG reference values).
+#
+# Inflow-ramp note
+# -----------------
+# An impulsive full-velocity inflow BC at t=0 (from a zero initial
+# condition) creates a startup transient large enough that this explicit-
+# convection IPCS scheme can go unstable at the dt/mesh combination needed
+# to resolve shedding (confirmed empirically during development: mesh/dt
+# choices that are otherwise stable blew up (NaN) within the first fraction
+# of a second without a ramp). ``inflow_ramp_time`` linearly ramps the
+# inflow peak velocity from 0 to ``u_peak`` over that many simulated
+# seconds, matching standard practice in DFG-benchmark implementations, and
+# does not change the (ramp-independent) coefficient normalization -- see
+# ``drag_coeff``/``lift_coeff`` below.
+class CylinderFlowProcess(Process):
+    """Incompressible flow past a cylinder in a channel (DFG 2D-2 benchmark)
+    via real dolfinx IPCS on a gmsh-generated, cylinder-refined mesh --
+    produces a von Karman vortex street at Re=100.
+
+    Inputs
+    ------
+    inflow_perturbation : float
+        Additive offset (m/s) on top of the (ramped) parabolic inflow
+        peak velocity each substep. Defaults to 0 (the composite this
+        process ships with wires a constant zero), i.e. the inflow follows
+        the DFG benchmark's prescribed profile exactly; a sibling process
+        could inject a controlled disturbance here without a schema change.
+        This is what justifies ``CylinderFlowProcess`` being a stateful
+        ``Process`` with a real (if usually-zero) input port, per the
+        Port-Design "no inputs => Step" convention documented on
+        ``ComplexGeometryStep``.
+
+    Outputs
+    -------
+    velocity_x, velocity_y : overwrite[array[float]]
+        Current absolute nodal velocity components on the P2 velocity
+        space. ``overwrite`` (not additive) for the same reason as
+        ``NavierStokesProcess.outputs`` -- see that docstring.
+    pressure : overwrite[array[float]]
+        Current absolute nodal pressure on the P1 pressure space.
+    vorticity : overwrite[array[float]]
+        Current scalar vorticity field, omega = dv/dx - du/dy (the 2D curl
+        of velocity), interpolated onto the same P1 pressure space (so
+        ``pressure_coords``/vorticity share dof coordinates) -- the
+        canonical way to visualize a von Karman street: alternating
+        positive/negative vorticity lobes shed off the cylinder.
+    drag_coeff, lift_coeff : overwrite[float]
+        Cd = 2*Fx/(rho*U_mean^2*D), Cl = 2*Fy/(rho*U_mean^2*D), where
+        (Fx, Fy) is the real surface-force integral
+        integral(sigma(u,p) . n) ds over the cylinder boundary facets
+        (sigma = 2*mu*epsilon(u) - p*I, n the cylinder's own outward
+        normal -- i.e. *minus* the fluid domain's facet normal, which
+        points inward at this hole boundary). rho=1, D=2*cylinder_radius,
+        and U_mean is the benchmark's *nominal* mean inflow velocity
+        ((2/3)*u_peak, from integrating the parabolic profile) -- fixed
+        regardless of ``inflow_ramp_time``, so Cd/Cl are directly
+        comparable to the DFG reference values (Cd_max~=3.22-3.24,
+        Cl_max~=0.99-1.01) once shedding is established.
+    elapsed_time : overwrite[float]
+        Total simulated time since this process instance was constructed
+        (drives the inflow ramp; also useful for a caller building a
+        Cd/Cl(t) time series without separately tracking tick count*dt).
+    """
+
+    config_schema = {
+        "h_cylinder": {"_type": "float", "_default": 0.008},
+        "h_far": {"_type": "float", "_default": 0.05},
+        "reynolds": {"_type": "float", "_default": 100.0},
+        "dt": {"_type": "float", "_default": 0.0005},
+        "u_peak": {"_type": "float", "_default": 1.5},
+        "inflow_ramp_time": {"_type": "float", "_default": 0.3},
+    }
+
+    def __init__(self, config=None, core=None):
+        super().__init__(config=config, core=core)
+        self._mesh_key = None
+        self._domain = None
+        self._facet_tags = None
+        self._markers = None
+        self._V = None
+        self._Q = None
+        self._bcu = None
+        self._bcp = None
+        self._u_inflow = None  # fem.Function(V), mutated in place each substep (ramp)
+        self._u_n = None  # fem.Function(V), persisted velocity between ticks
+        self._p_n = None  # fem.Function(Q), persisted pressure between ticks
+        self._t = 0.0  # elapsed simulated time, drives the inflow ramp
+
+    def _ensure_setup(self):
+        h_cylinder = self.config["h_cylinder"]
+        h_far = self.config["h_far"]
+        mesh_key = (h_cylinder, h_far)
+        if self._domain is None or self._mesh_key != mesh_key:
+            self._domain, self._facet_tags, self._markers, self._V, self._Q = (
+                _build_channel_spaces(h_cylinder, h_far)
+            )
+            self._bcu, self._bcp, self._u_inflow = _channel_cylinder_bcs(
+                self._domain, self._facet_tags, self._markers, self._V, self._Q
+            )
+            self._u_n = fem.Function(self._V)
+            self._p_n = fem.Function(self._Q)
+            self._mesh_key = mesh_key
+            self._t = 0.0
+
+    def inputs(self):
+        return {"inflow_perturbation": "float"}
+
+    def outputs(self):
+        return {
+            "velocity_x": "overwrite[array[float]]",
+            "velocity_y": "overwrite[array[float]]",
+            "pressure": "overwrite[array[float]]",
+            "vorticity": "overwrite[array[float]]",
+            "drag_coeff": "overwrite[float]",
+            "lift_coeff": "overwrite[float]",
+            "elapsed_time": "overwrite[float]",
+        }
+
+    def initial_state(self):
+        self._ensure_setup()
+        return {"inflow_perturbation": 0.0}
+
+    def _ipcs_channel_substep(self, u_peak_now, mu, dt):
+        """One IPCS substep on the channel-cylinder mesh (see module-level
+        comment above ``CylinderFlowProcess`` for the scheme; identical
+        3-step structure to ``NavierStokesProcess._ipcs_substep``, but with
+        the tagged channel BCs and a mutated-in-place inflow amplitude).
+        """
+        domain, V, Q = self._domain, self._V, self._Q
+        bcu, bcp = self._bcu, self._bcp
+        u_n, p_n = self._u_n, self._p_n
+        gdim = domain.geometry.dim
+        H = fem_gmsh.CHANNEL_HEIGHT
+
+        self._u_inflow.interpolate(
+            lambda x: np.stack(
+                [4.0 * u_peak_now * x[1] * (H - x[1]) / H**2, np.zeros_like(x[1])]
+            )
+        )
+
+        u = ufl.TrialFunction(V)
+        v = ufl.TestFunction(V)
+        p = ufl.TrialFunction(Q)
+        q = ufl.TestFunction(Q)
+
+        u_ = fem.Function(V)  # tentative velocity
+        p_ = fem.Function(Q)  # corrected pressure
+
+        k = fem.Constant(domain, PETSc.ScalarType(dt))
+        mu_c = fem.Constant(domain, PETSc.ScalarType(mu))
+        rho_c = fem.Constant(domain, PETSc.ScalarType(1.0))
+
+        def epsilon(uu):
+            return ufl.sym(ufl.nabla_grad(uu))
+
+        def sigma(uu, pp):
+            return 2 * mu_c * epsilon(uu) - pp * ufl.Identity(gdim)
+
+        U_avg = 0.5 * (u_n + u)
+
+        # Step 1: tentative velocity.
+        F1 = rho_c / k * ufl.dot(u - u_n, v) * ufl.dx
+        F1 += rho_c * ufl.dot(ufl.dot(u_n, ufl.nabla_grad(u_n)), v) * ufl.dx
+        F1 += ufl.inner(sigma(U_avg, p_n), epsilon(v)) * ufl.dx
+        a1 = ufl.lhs(F1)
+        L1 = ufl.rhs(F1)
+        problem1 = LinearProblem(
+            a1, L1, bcs=bcu, u=u_,
+            petsc_options_prefix=f"viva_fenics_cyl1_{next(_prefix_counter)}_",
+            petsc_options={"ksp_type": "preonly", "pc_type": "lu"},
+        )
+        problem1.solve()
+
+        # Step 2: pressure correction.
+        a2 = ufl.dot(ufl.grad(p), ufl.grad(q)) * ufl.dx
+        L2 = (
+            ufl.dot(ufl.grad(p_n), ufl.grad(q)) * ufl.dx
+            - (rho_c / k) * ufl.div(u_) * q * ufl.dx
+        )
+        problem2 = LinearProblem(
+            a2, L2, bcs=bcp, u=p_,
+            petsc_options_prefix=f"viva_fenics_cyl2_{next(_prefix_counter)}_",
+            petsc_options={"ksp_type": "preonly", "pc_type": "lu"},
+        )
+        problem2.solve()
+
+        # Step 3: velocity correction (solve directly into u_n).
+        a3 = ufl.dot(u, v) * ufl.dx
+        L3 = ufl.dot(u_, v) * ufl.dx - k * ufl.dot(ufl.grad(p_ - p_n), v) * ufl.dx
+        problem3 = LinearProblem(
+            a3, L3, bcs=[], u=u_n,
+            petsc_options_prefix=f"viva_fenics_cyl3_{next(_prefix_counter)}_",
+            petsc_options={"ksp_type": "preonly", "pc_type": "lu"},
+        )
+        problem3.solve()
+
+        p_n.x.array[:] = p_.x.array
+
+    def _drag_lift(self, mu, u_mean, diameter):
+        """Real surface-force integral over the cylinder boundary -- see
+        ``outputs`` docstring for the sign/normal convention.
+        """
+        domain = self._domain
+        gdim = domain.geometry.dim
+        n_fluid = ufl.FacetNormal(domain)
+        n_obstacle = -n_fluid  # cylinder's own outward normal (see outputs docstring)
+        ds_cyl = ufl.Measure(
+            "ds", domain=domain, subdomain_data=self._facet_tags,
+            subdomain_id=self._markers["cylinder"],
+        )
+        mu_c = fem.Constant(domain, PETSc.ScalarType(mu))
+
+        def epsilon(uu):
+            return ufl.sym(ufl.nabla_grad(uu))
+
+        sigma_form = 2 * mu_c * epsilon(self._u_n) - self._p_n * ufl.Identity(gdim)
+        traction = ufl.dot(sigma_form, n_obstacle)
+
+        fx = domain.comm.allreduce(
+            fem.assemble_scalar(fem.form(traction[0] * ds_cyl)), op=MPI.SUM
+        )
+        fy = domain.comm.allreduce(
+            fem.assemble_scalar(fem.form(traction[1] * ds_cyl)), op=MPI.SUM
+        )
+        drag_coeff = 2.0 * fx / (1.0 * u_mean**2 * diameter)
+        lift_coeff = 2.0 * fy / (1.0 * u_mean**2 * diameter)
+        return float(drag_coeff), float(lift_coeff)
+
+    def _vorticity(self):
+        """Scalar vorticity omega = dv/dx - du/dy, interpolated onto the
+        (P1) pressure space -- see ``outputs`` docstring.
+        """
+        u_n = self._u_n
+        curl_2d = u_n[1].dx(0) - u_n[0].dx(1)
+        expr = fem.Expression(curl_2d, self._Q.element.interpolation_points)
+        omega = fem.Function(self._Q)
+        omega.interpolate(expr)
+        return omega.x.array.copy()
+
+    def update(self, state, interval):
+        self._ensure_setup()
+
+        dt = self.config["dt"]
+        reynolds = self.config["reynolds"]
+        u_peak_full = self.config["u_peak"]
+        ramp_time = self.config["inflow_ramp_time"]
+        perturbation = float(state.get("inflow_perturbation") or 0.0)
+
+        diameter = 2.0 * fem_gmsh.CYLINDER_RADIUS
+        u_mean = (2.0 / 3.0) * u_peak_full  # mean of the parabolic inflow profile
+        nu = u_mean * diameter / reynolds
+        mu = 1.0 * nu
+
+        n_steps = max(1, round(interval / dt))
+        step_dt = interval / n_steps
+
+        drag_coeff = lift_coeff = 0.0
+        for _ in range(n_steps):
+            self._t += step_dt
+            ramp = min(1.0, self._t / ramp_time) if ramp_time > 0 else 1.0
+            u_peak_now = ramp * u_peak_full + perturbation
+            self._ipcs_channel_substep(u_peak_now, mu, step_dt)
+            drag_coeff, lift_coeff = self._drag_lift(mu, u_mean, diameter)
+
+        velocity_x = self._u_n.x.array[0::2].copy()
+        velocity_y = self._u_n.x.array[1::2].copy()
+        pressure = self._p_n.x.array.copy()
+        vorticity = self._vorticity()
+
+        return {
+            "velocity_x": velocity_x,
+            "velocity_y": velocity_y,
+            "pressure": pressure,
+            "vorticity": vorticity,
+            "drag_coeff": drag_coeff,
+            "lift_coeff": lift_coeff,
+            "elapsed_time": self._t,
+        }
+
+
+def _build_channel_spaces(h_cylinder, h_far):
+    """Build the DFG 2D-2 channel-cylinder mesh + Taylor-Hood-ish (P2
+    velocity / P1 pressure) function space pair.
+
+    Returns:
+        (domain, facet_tags, markers, V, Q) tuple.
+    """
+    domain, facet_tags, markers = fem_gmsh.build_channel_cylinder_mesh(h_cylinder, h_far)
+    gdim = domain.geometry.dim
+    V = fem.functionspace(domain, ("Lagrange", 2, (gdim,)))
+    Q = fem.functionspace(domain, ("Lagrange", 1))
+    return domain, facet_tags, markers, V, Q
+
+
+def _channel_cylinder_bcs(domain, facet_tags, markers, V, Q):
+    """Dirichlet BCs for the DFG 2D-2 channel: parabolic inflow (velocity),
+    no-slip on walls + cylinder (velocity), and zero pressure at the
+    outflow (the standard "do-nothing" outflow condition -- velocity has no
+    BC there, only a natural/traction-free condition, which the outflow
+    pressure Dirichlet realizes weakly through the IPCS pressure-correction
+    system).
+
+    Returns:
+        (bcu, bcp, u_inflow) tuple -- ``bcu``/``bcp`` are BC lists for the
+        velocity/pressure systems; ``u_inflow`` is the (mutable) inflow
+        ``fem.Function`` so the caller can update its amplitude in place
+        each substep (see ``CylinderFlowProcess._ipcs_channel_substep``)
+        without re-locating dofs or rebuilding the ``dirichletbc`` object.
+    """
+    fdim = domain.topology.dim - 1
+    H = fem_gmsh.CHANNEL_HEIGHT
+
+    def _facets(name):
+        return facet_tags.find(markers[name])
+
+    inflow_facets = _facets("inflow")
+    outflow_facets = _facets("outflow")
+    noslip_facets = np.concatenate([_facets("walls"), _facets("cylinder")])
+
+    u_inflow = fem.Function(V)
+    u_inflow.interpolate(lambda x: np.stack([np.zeros_like(x[1]), np.zeros_like(x[1])]))
+
+    inflow_dofs = fem.locate_dofs_topological(V, fdim, inflow_facets)
+    noslip_dofs = fem.locate_dofs_topological(V, fdim, noslip_facets)
+    outflow_dofs = fem.locate_dofs_topological(Q, fdim, outflow_facets)
+
+    bc_inflow = fem.dirichletbc(u_inflow, inflow_dofs)
+    bc_noslip = fem.dirichletbc(PETSc.ScalarType((0.0, 0.0)), noslip_dofs, V)
+    bc_outflow_p = fem.dirichletbc(PETSc.ScalarType(0.0), outflow_dofs, Q)
+
+    return [bc_inflow, bc_noslip], [bc_outflow_p], u_inflow
+
+
+def zero_channel_fields(h_cylinder=0.008, h_far=0.05):
+    """Zero-valued (velocity_x, velocity_y, pressure, vorticity) nodal
+    arrays of the correct length for a channel-cylinder mesh at this
+    resolution, for seeding a composite's stores -- see ``zero_fields``
+    (lid-driven cavity) for why never ``[]``.
+    """
+    _, _, _, V, Q = _build_channel_spaces(h_cylinder, h_far)
+    n_v = V.tabulate_dof_coordinates().shape[0]
+    n_q = Q.tabulate_dof_coordinates().shape[0]
+    return (
+        np.zeros(n_v, dtype=float),
+        np.zeros(n_v, dtype=float),
+        np.zeros(n_q, dtype=float),
+        np.zeros(n_q, dtype=float),
+    )
+
+
+def channel_velocity_coords(h_cylinder=0.008, h_far=0.05):
+    """(N, 2) dof coordinates of the P2 velocity space on the
+    channel-cylinder mesh at this resolution."""
+    _, _, _, V, _ = _build_channel_spaces(h_cylinder, h_far)
+    return V.tabulate_dof_coordinates()[:, :2]
+
+
+def channel_pressure_coords(h_cylinder=0.008, h_far=0.05):
+    """(N, 2) dof coordinates of the P1 pressure space on the
+    channel-cylinder mesh at this resolution -- also the vorticity field's
+    coordinates (interpolated onto the same P1 space; see
+    ``CylinderFlowProcess._vorticity``)."""
+    _, _, _, _, Q = _build_channel_spaces(h_cylinder, h_far)
+    return Q.tabulate_dof_coordinates()[:, :2]

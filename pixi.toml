@@ -22,4 +22,4 @@ vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-wo
 plotly = "*"
 pytest = "*"
 viva-fenics = { path = ".", editable = true }
-pbg-superpowers = { path = "/Users/eranagmon/code/pbg-superpowers--viva-expert-investigation", editable = true }
+pbg-superpowers = { git = "https://github.com/vivarium-collective/viva-superpowers.git", branch = "main" }

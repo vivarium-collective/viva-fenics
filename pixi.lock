@@ -357,13 +357,13 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/e7/00/3fca040d7cf8a32776d3d81a00c8ee7457e00f80c649f1e4a863c8321ae9/uri_template-1.3.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/39/e6/b5c0630ace9757232aec07112be8146b812787db52141ff9d50674aa7634/uvicorn-0.52.0-py3-none-any.whl
+      - pypi: git+https://github.com/vivarium-collective/viva-superpowers.git?branch=main#152189ad277268f477e5c7f53ef2747db00de772
       - pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#ade05750b14d931034ab195cb29c18ae3b17abe6
       - pypi: https://files.pythonhosted.org/packages/e2/cc/e097523dd85c9cf5d354f78310927f1656c422bd7b2613b2db3e3f9a0f2c/webcolors-25.10.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/57/5b/28365212062939d213802e5e5fe855cdb231e1c2a93254ba1690066504e3/xarray-2026.7.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/de/7c/ba8ca8cbe9dbef8e83a95fc208fed8e6686c98b4719aaa0aa7f3d31fe390/zarr-3.1.6-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/80/ad/8a8525a72190db2c8d6807c69695ef0ea959fd50a4ac887af80803ff5487/zarrs-0.2.3-cp311-abi3-macosx_11_0_arm64.whl
       - pypi: ./
-      - pypi: /Users/eranagmon/code/pbg-superpowers--viva-expert-investigation
 packages:
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/_openmp_mutex-4.5-7_kmp_llvm.conda
   build_number: 7
@@ -3819,10 +3819,9 @@ packages:
   - pint ; extra == 'dev'
   - unum ; extra == 'dev'
   requires_python: '>=3.11'
-- pypi: /Users/eranagmon/code/pbg-superpowers--viva-expert-investigation
+- pypi: git+https://github.com/vivarium-collective/viva-superpowers.git?branch=main#152189ad277268f477e5c7f53ef2747db00de772
   name: pbg-superpowers
   version: 0.17.0
-  sha256: c25fe7c0609c533a90ec6b2c260ac3a466ae5d5fe157ddcc253ea95b49553e78
   requires_dist:
   - pyyaml>=6.0
   - ruamel-yaml>=0.18
@@ -5005,7 +5004,7 @@ packages:
 - pypi: ./
   name: viva-fenics
   version: 0.1.0
-  sha256: d644d1d24bc74c4b375875d617fb608f0a126c18aa3f37c3caf8804f5237aa76
+  sha256: 9e51e5686c97ab64f9276d82293b1447bfb266ad9b9f66ff00f7ef61329c05de
   requires_dist:
   - bigraph-schema>=0.0.60
   - process-bigraph>=0.0.66

@@ -20,4 +20,4 @@ dependencies = [
 packages = ["viva_fenics"]
 
 [tool.uv.sources]
-vivarium-workbench = { path = "/Users/eranagmon/code/vivarium-workbench", editable = true }
+vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-workbench.git", branch = "main" }

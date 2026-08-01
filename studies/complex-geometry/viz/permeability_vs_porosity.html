@@ -1,0 +1,115 @@
+<div class="pbg-viz-card">
+<style>
+.pbg-viz-card {
+  --pbg-surface: #fcfcfb;
+  --pbg-page: #f9f9f7;
+  --pbg-text: #0b0b0b;
+  --pbg-text-secondary: #52514e;
+  --pbg-muted: #898781;
+  --pbg-border: rgba(11,11,11,0.10);
+  color-scheme: light;
+  background: var(--pbg-surface);
+  border: 1px solid var(--pbg-border);
+  border-radius: 12px;
+  padding: 14px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .pbg-viz-card {
+    --pbg-surface: #1a1a19;
+    --pbg-page: #0d0d0d;
+    --pbg-text: #ffffff;
+    --pbg-text-secondary: #c3c2b7;
+    --pbg-muted: #898781;
+    --pbg-border: rgba(255,255,255,0.10);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] .pbg-viz-card {
+  --pbg-surface: #1a1a19;
+  --pbg-page: #0d0d0d;
+  --pbg-text: #ffffff;
+  --pbg-text-secondary: #c3c2b7;
+  --pbg-muted: #898781;
+  --pbg-border: rgba(255,255,255,0.10);
+  color-scheme: dark;
+}
+</style>
+<div style="height:440px; width:100%;">                        <script>window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
+        <script charset="utf-8" src="https://cdn.plot.ly/plotly-3.7.0.min.js"></script>                <div id="pbg-viz-70b11794" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("pbg-viz-70b11794")) {                    Plotly.newPlot(                        "pbg-viz-70b11794",                        [{"hovertemplate":"porosity (phi)=%{x:.4g}\u003cbr\u003ek_eff (Stokes solve)=%{y:.4g}\u003cextra\u003e\u003c\u002fextra\u003e","line":{"color":"#2a78d6","width":2},"marker":{"color":"#2a78d6","line":{"color":"#fcfcfb","width":1},"size":6},"meta":"series-1","mode":"markers+lines","name":"k_eff (Stokes solve)","x":{"dtype":"f8","bdata":"mbx7\u002fi\u002fz3z9MMEeOncPlPyF8vEP\u002fQ+o\u002fCHPu4A587T8="},"y":{"dtype":"f8","bdata":"wyrNq+v\u002fKD8MWlyIu\u002fdEP9YUIfrDQ1c\u002f3dKgpalNZj8="},"type":"scatter"},{"hovertemplate":"porosity (phi)=%{x:.4g}\u003cbr\u003eKozeny-Carman-shaped fit (phi^3\u002f(1-phi)^2)=%{y:.4g}\u003cextra\u003e\u003c\u002fextra\u003e","line":{"color":"#eb6834","dash":"dash","width":2},"meta":"series-2","mode":"lines","name":"Kozeny-Carman-shaped fit (phi^3\u002f(1-phi)^2)","x":{"dtype":"f8","bdata":"mbx7\u002fi\u002fz3z9MMEeOncPlPyF8vEP\u002fQ+o\u002fCHPu4A587T8="},"y":{"dtype":"f8","bdata":"msv\u002fhChjDD8\u002fSDx3Nv41PzISCHXLyl4\u002fVb2dY+xLjD8="},"type":"scatter"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"annotations":[{"align":"right","bgcolor":"rgba(0,0,0,0)","font":{"color":"#52514e","size":13},"showarrow":false,"text":"k_eff falls 0.92-\u003e0.50 porosity: 2.72e-03 -\u003e 1.91e-04 (14.3x drop)","x":0.98,"xanchor":"right","xref":"paper","y":0.94,"yanchor":"top","yref":"paper"}],"title":{"font":{"size":16,"color":"#0b0b0b"},"text":"Effective permeability k_eff vs porosity (Stokes flow, pillar lattice)","x":0.02,"xanchor":"left"},"xaxis":{"title":{"font":{"color":"#52514e"},"text":"porosity (phi)"}},"yaxis":{"title":{"font":{"color":"#52514e"},"text":"k_eff"},"type":"log"},"legend":{"font":{"color":"#52514e"}},"margin":{"l":70,"r":30,"t":50,"b":50},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", sans-serif","size":12,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", sans-serif","size":12}},"height":440,"autosize":true,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","hovermode":"closest"},                        {"displaylogo": false, "responsive": true}                    ).then(function(){
+                            
+(function() {
+  var gd = document.getElementById('pbg-viz-70b11794');
+  if (!gd) return;
+  function theme() {
+    var attr = document.documentElement.getAttribute('data-theme');
+    var dark = attr ? attr === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    return dark ? {
+      text: '#ffffff', textSecondary: '#c3c2b7', muted: '#898781',
+      grid: '#2c2c2a', axis: '#383835', surface: '#1a1a19',
+      series: ['#3987e5', '#d95926', '#199e70', '#c98500']
+    } : {
+      text: '#0b0b0b', textSecondary: '#52514e', muted: '#898781',
+      grid: '#e1e0d9', axis: '#c3c2b7', surface: '#fcfcfb',
+      series: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100']
+    };
+  }
+  function apply() {
+    var t = theme();
+    var patch = {
+      'paper_bgcolor': 'rgba(0,0,0,0)',
+      'plot_bgcolor': 'rgba(0,0,0,0)',
+      'font.color': t.textSecondary,
+      'title.font.color': t.text,
+      'legend.font.color': t.textSecondary,
+      'xaxis.gridcolor': t.grid, 'xaxis.linecolor': t.axis, 'xaxis.zerolinecolor': t.axis,
+      'xaxis.tickfont.color': t.muted, 'xaxis.title.font.color': t.textSecondary,
+      'yaxis.gridcolor': t.grid, 'yaxis.linecolor': t.axis, 'yaxis.zerolinecolor': t.axis,
+      'yaxis.tickfont.color': t.muted, 'yaxis.title.font.color': t.textSecondary,
+      'coloraxis.colorbar.tickfont.color': t.muted,
+      'coloraxis.colorbar.title.font.color': t.textSecondary,
+      'coloraxis.colorbar.outlinewidth': 0
+    };
+    if (gd.layout && gd.layout.annotations) {
+      for (var i = 0; i < gd.layout.annotations.length; i++) {
+        patch['annotations[' + i + '].font.color'] = t.textSecondary;
+      }
+    }
+    if (gd.layout && gd.layout.sliders && gd.layout.sliders.length) {
+      patch['sliders[0].font.color'] = t.muted;
+      patch['sliders[0].currentvalue.font.color'] = t.textSecondary;
+      patch['sliders[0].bgcolor'] = t.surface;
+      patch['sliders[0].bordercolor'] = t.axis;
+      patch['sliders[0].activebgcolor'] = t.axis;
+    }
+    if (gd.layout && gd.layout.updatemenus && gd.layout.updatemenus.length) {
+      patch['updatemenus[0].bgcolor'] = t.surface;
+      patch['updatemenus[0].bordercolor'] = t.axis;
+      patch['updatemenus[0].font.color'] = t.textSecondary;
+    }
+    Plotly.relayout(gd, patch);
+    if (gd.data) {
+      for (var k = 0; k < gd.data.length; k++) {
+        if (gd.data[k].marker && gd.data[k].marker.line) {
+          Plotly.restyle(gd, {'marker.line.color': t.surface}, [k]);
+        }
+        var meta = gd.data[k].meta;
+        if (typeof meta === 'string' && meta.indexOf('series-') === 0) {
+          var seriesIdx = parseInt(meta.split('-')[1], 10) - 1;
+          var color = t.series[seriesIdx % t.series.length];
+          Plotly.restyle(gd, {'line.color': color, 'marker.color': color}, [k]);
+        }
+      }
+    }
+  }
+  apply();
+  var mo = new MutationObserver(apply);
+  mo.observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) { mq.addEventListener('change', apply); }
+    else if (mq.addListener) { mq.addListener(apply); }
+  }
+})();
+
+                        })                };            </script>        </div></div>

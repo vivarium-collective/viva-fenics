@@ -51,13 +51,14 @@ from __future__ import annotations
 
 import itertools
 
+import basix.ufl
 import numpy as np
 import ufl
 from dolfinx import fem, mesh
 from dolfinx.fem.petsc import LinearProblem
 from mpi4py import MPI
 from petsc4py import PETSc
-from process_bigraph import Process
+from process_bigraph import Process, Step
 
 from viva_fenics import fem_gmsh
 
@@ -754,3 +755,288 @@ def channel_pressure_coords(h_cylinder=0.008, h_far=0.05):
     ``CylinderFlowProcess._vorticity``)."""
     _, _, _, _, Q = _build_channel_spaces(h_cylinder, h_far)
     return Q.tabulate_dof_coordinates()[:, :2]
+
+
+# =============================================================================
+# PorousFlowStep: steady Stokes flow through a periodic pillar lattice ->
+# effective (Darcy) permeability
+# =============================================================================
+#
+# A creeping-flow (Stokes, not Navier-Stokes) solve on the gmsh-generated
+# porous-lattice mesh (``viva_fenics.fem_gmsh.build_porous_lattice_mesh``):
+# a real Taylor-Hood (P2 velocity / P1 pressure) MIXED function space (one
+# ``basix.ufl.mixed_element`` -- see the dolfinx 0.11 Stokes demo,
+# ``demo_stokes.py``'s ``mixed_direct()``, for the API this follows), driven
+# by a prescribed pressure DROP across the channel, with no-slip velocity on
+# the channel walls AND every pillar. A SINGLE linear saddle-point
+# ``LinearProblem`` solve (no time-stepping -- Stokes flow at vanishing
+# Reynolds number has no unsteady term) produces the full velocity/pressure
+# field, from which the volume-averaged x-velocity and Darcy's law give the
+# effective permeability:
+#
+#     <u_x> = (k_eff / mu) * (delta_p / L)   =>   k_eff = mu * <u_x> * L / delta_p
+#
+# Pressure boundary condition (the "do-nothing"/Heywood-Rannacher-Turek
+# pressure BC, standard for FEM Stokes/Navier-Stokes duct flow): velocity is
+# left COMPLETELY UNCONSTRAINED at the inflow/outflow boundaries (no
+# Dirichlet BC there at all -- only no-slip on walls+pillars), and the
+# prescribed pressure enters as a NATURAL (Neumann) load on the momentum
+# equation's right-hand side, ``-integral(p_prescribed * (n . v)) ds``,
+# rather than as a Dirichlet constraint on the pressure trial space.
+# Imposing p via a strong pressure-space Dirichlet BC INSTEAD (tried first,
+# during development) is inconsistent with also dropping the momentum
+# equation's own boundary integral (implicitly demanding zero TOTAL
+# traction there) -- confirmed empirically: it drove ~zero net flow despite
+# a nonzero pressure drop. The boundary-load form is the textbook-correct
+# way to prescribe pressure while leaving the (near-parallel, viscous-
+# stress-negligible) outflow physically free. Because velocity is
+# Dirichlet-constrained on walls+pillars but left open at inflow/outflow,
+# the mixed system has no pressure null space to remove (unlike the
+# lid-driven-cavity Stokes demo, which is Dirichlet-velocity on its ENTIRE
+# boundary and needs an explicit PETSc nullspace) -- a direct LU solve via
+# the same ``LinearProblem`` convention used everywhere else in this module
+# suffices.
+POROUS_PRESSURE_DROP_DEFAULT = 1.0
+POROUS_VISCOSITY_DEFAULT = 1.0
+
+
+def _build_porous_spaces(nx, ny, pillar_radius, h_pillar, h_far):
+    """Build the porous-lattice mesh + Taylor-Hood MIXED (P2 velocity / P1
+    pressure) function space.
+
+    Returns:
+        (domain, facet_tags, markers, W, porosity) tuple -- ``W`` is the
+        single mixed ``basix.ufl.mixed_element([P2, P1])`` function space
+        (not a (V, Q) pair; the mixed/"non-blocked" formulation, per the
+        dolfinx Stokes demo's ``mixed_direct()``).
+    """
+    domain, facet_tags, markers, porosity = fem_gmsh.build_porous_lattice_mesh(
+        nx, ny, pillar_radius, h_pillar, h_far
+    )
+    gdim = domain.geometry.dim
+    P2 = basix.ufl.element("Lagrange", domain.basix_cell(), 2, shape=(gdim,))
+    P1 = basix.ufl.element("Lagrange", domain.basix_cell(), 1)
+    TH = basix.ufl.mixed_element([P2, P1])
+    W = fem.functionspace(domain, TH)
+    return domain, facet_tags, markers, W, porosity
+
+
+def _porous_lattice_noslip_bc(domain, facet_tags, markers, W):
+    """No-slip Dirichlet velocity BC on walls + every pillar (the ONLY
+    Dirichlet BC in this problem -- see module comment above
+    ``PorousFlowStep`` for why the pressure drop is imposed as a boundary
+    LOAD, not a Dirichlet constraint).
+    """
+    fdim = domain.topology.dim - 1
+    W0 = W.sub(0)
+    V0, _ = W0.collapse()
+
+    noslip_facets = np.concatenate([
+        facet_tags.find(markers["walls"]), facet_tags.find(markers["pillars"]),
+    ])
+    noslip = fem.Function(V0)
+    noslip.x.array[:] = 0.0
+    noslip_dofs = fem.locate_dofs_topological((W0, V0), fdim, noslip_facets)
+    return fem.dirichletbc(noslip, noslip_dofs, W0)
+
+
+def solve_porous_stokes(nx, ny, pillar_radius, h_pillar, h_far, mu, pressure_drop):
+    """Solve steady Stokes flow through the porous pillar lattice: one real
+    mixed (Taylor-Hood) ``dolfinx.fem.petsc.LinearProblem`` saddle-point
+    solve, no time-stepping (see module comment above ``PorousFlowStep``).
+
+    Returns:
+        (domain, facet_tags, markers, uh, ph, porosity) tuple -- ``uh``
+        (velocity, P2 vector ``fem.Function``) and ``ph`` (pressure, P1
+        scalar ``fem.Function``) are the COLLAPSED sub-functions of the
+        mixed solution (independent function spaces/dof arrays, ready for
+        the same nodal-array handling as ``NavierStokesProcess``/
+        ``CylinderFlowProcess``).
+    """
+    domain, facet_tags, markers, W, porosity = _build_porous_spaces(
+        nx, ny, pillar_radius, h_pillar, h_far
+    )
+    bc_noslip = _porous_lattice_noslip_bc(domain, facet_tags, markers, W)
+
+    u, p = ufl.TrialFunctions(W)
+    v, q = ufl.TestFunctions(W)
+
+    def epsilon(uu):
+        return ufl.sym(ufl.grad(uu))
+
+    mu_c = fem.Constant(domain, PETSc.ScalarType(mu))
+    a = (
+        2 * mu_c * ufl.inner(epsilon(u), epsilon(v)) * ufl.dx
+        - p * ufl.div(v) * ufl.dx
+        - q * ufl.div(u) * ufl.dx
+    )
+
+    # Pressure boundary LOAD (do-nothing pressure BC -- see module comment):
+    # -integral(p_prescribed * (n . v)) ds at inflow (p = pressure_drop) and
+    # outflow (p = 0), with the domain's own outward FacetNormal so the sign
+    # comes out right at both ends without hand-flipping it per boundary.
+    n = ufl.FacetNormal(domain)
+    ds = ufl.Measure("ds", domain=domain, subdomain_data=facet_tags)
+    zero_force = fem.Constant(domain, PETSc.ScalarType((0.0, 0.0)))
+    p_in_c = fem.Constant(domain, PETSc.ScalarType(pressure_drop))
+    p_out_c = fem.Constant(domain, PETSc.ScalarType(0.0))
+    L = (
+        ufl.inner(zero_force, v) * ufl.dx
+        - p_in_c * ufl.inner(n, v) * ds(markers["inflow"])
+        - p_out_c * ufl.inner(n, v) * ds(markers["outflow"])
+    )
+
+    prefix = f"viva_fenics_porous_{next(_prefix_counter)}_"
+    problem = LinearProblem(
+        a, L, bcs=[bc_noslip],
+        petsc_options_prefix=prefix,
+        petsc_options={"ksp_type": "preonly", "pc_type": "lu"},
+    )
+    wh = problem.solve()
+    uh = wh.sub(0).collapse()
+    ph = wh.sub(1).collapse()
+
+    return domain, facet_tags, markers, uh, ph, porosity
+
+
+def mean_velocity_x(domain, uh):
+    """Volume-averaged x-velocity ``<u_x> = (1/Area) * integral(u_x) dx``
+    over the fluid domain -- a real FEM integral (``fem.assemble_scalar``),
+    not a nodal average, so it is exact for the P2 velocity field regardless
+    of mesh node placement. The Darcy-law numerator (see module comment
+    above ``PorousFlowStep``).
+    """
+    one = fem.Constant(domain, PETSc.ScalarType(1.0))
+    area = float(domain.comm.allreduce(
+        fem.assemble_scalar(fem.form(one * ufl.dx)), op=MPI.SUM
+    ))
+    ux_integral = float(domain.comm.allreduce(
+        fem.assemble_scalar(fem.form(uh[0] * ufl.dx)), op=MPI.SUM
+    ))
+    return ux_integral / area
+
+
+def noslip_max_speed(domain, facet_tags, markers, uh):
+    """Max |u| over every no-slip (walls + pillars) boundary dof -- should
+    sit at machine-precision zero if the Dirichlet BC was actually applied
+    to the true tagged facets; a nonzero value here means the no-slip
+    condition leaked (e.g. a pillar boundary misclassified into the wrong
+    physical group).
+    """
+    fdim = domain.topology.dim - 1
+    V = uh.function_space
+    noslip_facets = np.concatenate([
+        facet_tags.find(markers["walls"]), facet_tags.find(markers["pillars"]),
+    ])
+    noslip_dofs = fem.locate_dofs_topological(V, fdim, noslip_facets)
+    if len(noslip_dofs) == 0:
+        return 0.0
+    vx = uh.x.array[0::2]
+    vy = uh.x.array[1::2]
+    speed = np.hypot(vx, vy)
+    return float(np.max(speed[noslip_dofs]))
+
+
+class PorousFlowStep(Step):
+    """Steady Stokes (creeping) flow through a periodic circular-pillar
+    lattice, driven by a prescribed pressure drop -- computes the effective
+    (Darcy) permeability ``k_eff`` of the porous microstructure (see module
+    comment above for the physics/BC setup).
+
+    Stateless (a fresh mesh + a single linear saddle-point solve every
+    invocation, no time-varying inputs) -- the Port-Design "no inputs =>
+    Step" convention, same as ``ComplexGeometryStep``.
+
+    Outputs
+    -------
+    velocity_x, velocity_y : array[float]
+        Nodal velocity components on the P2 velocity space (de-interleaved,
+        same convention as ``NavierStokesProcess``).
+    pressure : array[float]
+        Nodal pressure on the P1 pressure space.
+    porosity : float
+        FEM-assembled fluid-area fraction of the imported mesh (see
+        ``fem_gmsh.build_porous_lattice_mesh``).
+    mean_ux : float
+        Volume-averaged x-velocity ``<u_x>`` (Darcy-law numerator).
+    k_eff : float
+        Effective permeability, ``mu * mean_ux * channel_length /
+        pressure_drop`` (Darcy's law, solved for k_eff).
+    divergence_mean : float
+        Mean |div(u)| over the domain -- should be small (a real Taylor-
+        Hood/LBB-stable mixed solve is much closer to exactly
+        divergence-free than IPCS operator splitting, which only achieves
+        *approximate* incompressibility; see ``divergence_stats``).
+    noslip_max_speed : float
+        Max |u| over every no-slip (wall + pillar) boundary dof -- should be
+        ~0 (see ``noslip_max_speed`` function docstring).
+    n_cells : integer
+        Imported mesh's local cell count (confirms a non-trivial
+        triangulation, same readout as ``ComplexGeometryStep``).
+    """
+
+    config_schema = {
+        "nx": {"_type": "integer", "_default": 4},
+        "ny": {"_type": "integer", "_default": 4},
+        "pillar_radius": {"_type": "float", "_default": 0.08},
+        "h_pillar": {"_type": "float", "_default": 0.015},
+        "h_far": {"_type": "float", "_default": 0.05},
+        "mu": {"_type": "float", "_default": POROUS_VISCOSITY_DEFAULT},
+        "pressure_drop": {"_type": "float", "_default": POROUS_PRESSURE_DROP_DEFAULT},
+    }
+
+    def inputs(self):
+        return {}
+
+    def outputs(self):
+        return {
+            "velocity_x": "array[float]",
+            "velocity_y": "array[float]",
+            "pressure": "array[float]",
+            "porosity": "float",
+            "mean_ux": "float",
+            "k_eff": "float",
+            "divergence_mean": "float",
+            "noslip_max_speed": "float",
+            "n_cells": "integer",
+        }
+
+    def update(self, state):
+        cfg = self.config
+        domain, facet_tags, markers, uh, ph, porosity = solve_porous_stokes(
+            cfg["nx"], cfg["ny"], cfg["pillar_radius"], cfg["h_pillar"], cfg["h_far"],
+            cfg["mu"], cfg["pressure_drop"],
+        )
+
+        mean_ux = mean_velocity_x(domain, uh)
+        k_eff = cfg["mu"] * mean_ux * fem_gmsh.POROUS_DOMAIN_LENGTH / cfg["pressure_drop"]
+        divergence_mean, _divergence_max = divergence_stats(domain, uh.function_space, uh.x.array)
+        max_noslip_speed = noslip_max_speed(domain, facet_tags, markers, uh)
+
+        return {
+            "velocity_x": uh.x.array[0::2].copy(),
+            "velocity_y": uh.x.array[1::2].copy(),
+            "pressure": ph.x.array.copy(),
+            "porosity": porosity,
+            "mean_ux": mean_ux,
+            "k_eff": k_eff,
+            "divergence_mean": divergence_mean,
+            "noslip_max_speed": max_noslip_speed,
+            "n_cells": fem_gmsh.n_cells(domain),
+        }
+
+
+def porous_velocity_coords(nx=4, ny=4, pillar_radius=0.08, h_pillar=0.015, h_far=0.05):
+    """(N, 2) dof coordinates of the P2 velocity space on the porous-lattice
+    mesh at this configuration."""
+    _, _, _, W, _ = _build_porous_spaces(nx, ny, pillar_radius, h_pillar, h_far)
+    V0, _ = W.sub(0).collapse()
+    return V0.tabulate_dof_coordinates()[:, :2]
+
+
+def porous_pressure_coords(nx=4, ny=4, pillar_radius=0.08, h_pillar=0.015, h_far=0.05):
+    """(N, 2) dof coordinates of the P1 pressure space on the porous-lattice
+    mesh at this configuration."""
+    _, _, _, W, _ = _build_porous_spaces(nx, ny, pillar_radius, h_pillar, h_far)
+    Q0, _ = W.sub(1).collapse()
+    return Q0.tabulate_dof_coordinates()[:, :2]

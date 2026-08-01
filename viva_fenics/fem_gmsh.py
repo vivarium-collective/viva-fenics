@@ -310,6 +310,166 @@ def build_channel_cylinder_mesh(h_cylinder=0.01, h_far=0.06):
     return domain, facet_tags, dict(CHANNEL_CYLINDER_MARKERS)
 
 
+# ---------------------------------------------------------------------------
+# Porous lattice geometry: channel with a periodic array of circular pillars
+# ---------------------------------------------------------------------------
+
+# Unit channel: a 1x1 square domain tiled with an nx-by-ny grid of circular
+# pillars -- one "unit cell" per grid point, spacing = L/nx by H/ny -- so the
+# whole channel is packed edge-to-edge with the lattice (no inlet/outlet
+# buffer), the standard finite-window approximation of an infinite periodic
+# porous medium used to estimate its effective (Darcy) permeability.
+POROUS_DOMAIN_LENGTH = 1.0
+POROUS_DOMAIN_HEIGHT = 1.0
+
+# Facet-tag marker values (mirrors CHANNEL_CYLINDER_MARKERS's convention --
+# "pillars" replaces the single-obstacle "cylinder" group since there are
+# nx*ny disks here, all sharing one physical-group tag).
+POROUS_LATTICE_MARKERS = {"fluid": 1, "inflow": 2, "outflow": 3, "walls": 4, "pillars": 5}
+
+
+def lattice_porosity(nx, ny, pillar_radius, length=POROUS_DOMAIN_LENGTH, height=POROUS_DOMAIN_HEIGHT):
+    """Analytic (geometry-formula) porosity of an nx-by-ny circular-pillar
+    lattice: 1 - (total pillar area) / (channel area).
+
+    A quick closed-form estimate for sizing/sanity purposes -- the
+    authoritative porosity used by the Stokes solve is the FEM-ASSEMBLED
+    fluid-area fraction returned by ``build_porous_lattice_mesh`` (the real
+    meshed domain, not this polygon-free idealization; gmsh's triangulated
+    circle boundary makes the two agree only approximately, closer as the
+    mesh is refined).
+    """
+    pillar_area = nx * ny * np.pi * pillar_radius**2
+    return 1.0 - pillar_area / (length * height)
+
+
+def _build_porous_lattice_model(nx, ny, pillar_radius, h_pillar, h_far):
+    """Build the porous-lattice gmsh OCC model: a unit channel rectangle
+    minus an nx-by-ny grid of circular pillars, with 4 tagged boundary
+    groups (inflow/outflow/walls/pillars) and a graded mesh-size field that
+    refines to ``h_pillar`` at every pillar boundary and relaxes to
+    ``h_far`` away from all of them.
+    """
+    L, H = POROUS_DOMAIN_LENGTH, POROUS_DOMAIN_HEIGHT
+    spacing_x, spacing_y = L / nx, H / ny
+    max_r = 0.5 * min(spacing_x, spacing_y)
+    if pillar_radius >= max_r:
+        raise ValueError(
+            f"pillar_radius={pillar_radius} too large for a {nx}x{ny} lattice "
+            f"(spacing={spacing_x:.4g}x{spacing_y:.4g}); must be < {max_r:.4g} "
+            "to avoid touching/overlapping neighboring pillars or the channel wall"
+        )
+
+    gmsh.model.add("porous_lattice")
+    rect = gmsh.model.occ.addRectangle(0, 0, 0, L, H)
+    pillar_dimtags = []
+    for i in range(nx):
+        for j in range(ny):
+            cx = (i + 0.5) * spacing_x
+            cy = (j + 0.5) * spacing_y
+            disk = gmsh.model.occ.addDisk(cx, cy, 0, pillar_radius, pillar_radius)
+            pillar_dimtags.append((2, disk))
+    cut, _ = gmsh.model.occ.cut([(2, rect)], pillar_dimtags)
+    gmsh.model.occ.synchronize()
+    if len(cut) != 1:
+        raise RuntimeError(
+            f"expected the pillar lattice cut to leave a single connected fluid "
+            f"surface, got {len(cut)} -- pillars may be touching/splitting the domain"
+        )
+    surf_tag = cut[0][1]
+    gmsh.model.addPhysicalGroup(2, [surf_tag], tag=POROUS_LATTICE_MARKERS["fluid"], name="fluid")
+
+    # Classify boundary curves by bounding box, same approach as
+    # _build_channel_cylinder_model: the 4 straight channel sides go to
+    # inflow/outflow/walls, every circular pillar boundary (not aligned with
+    # any straight edge) falls through to "pillars".
+    boundary = gmsh.model.getBoundary([(2, surf_tag)], oriented=False)
+    inflow, outflow, walls, pillars = [], [], [], []
+    tol = 1e-5
+    for dim, tag in boundary:
+        xmin, ymin, _zmin, xmax, ymax, _zmax = gmsh.model.getBoundingBox(dim, tag)
+        if np.isclose(xmin, 0.0, atol=tol) and np.isclose(xmax, 0.0, atol=tol):
+            inflow.append(tag)
+        elif np.isclose(xmin, L, atol=tol) and np.isclose(xmax, L, atol=tol):
+            outflow.append(tag)
+        elif (np.isclose(ymin, 0.0, atol=tol) and np.isclose(ymax, 0.0, atol=tol)) or (
+            np.isclose(ymin, H, atol=tol) and np.isclose(ymax, H, atol=tol)
+        ):
+            walls.append(tag)
+        else:
+            pillars.append(tag)
+
+    gmsh.model.addPhysicalGroup(1, inflow, tag=POROUS_LATTICE_MARKERS["inflow"], name="inflow")
+    gmsh.model.addPhysicalGroup(1, outflow, tag=POROUS_LATTICE_MARKERS["outflow"], name="outflow")
+    gmsh.model.addPhysicalGroup(1, walls, tag=POROUS_LATTICE_MARKERS["walls"], name="walls")
+    gmsh.model.addPhysicalGroup(1, pillars, tag=POROUS_LATTICE_MARKERS["pillars"], name="pillars")
+
+    # Graded size field: SizeMin (h_pillar) right at every pillar boundary,
+    # SizeMax (h_far) away from all of them -- same Distance/Threshold
+    # pattern as _build_channel_cylinder_model, but the CurvesList spans
+    # ALL nx*ny pillar boundaries at once so every pillar-pillar gap in the
+    # lattice gets resolved, not just the near-field of a single obstacle.
+    gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)
+    gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
+    gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
+    gmsh.model.mesh.field.add("Distance", 1)
+    gmsh.model.mesh.field.setNumbers(1, "CurvesList", [float(t) for t in pillars])
+    gmsh.model.mesh.field.add("Threshold", 2)
+    gmsh.model.mesh.field.setNumber(2, "InField", 1)
+    gmsh.model.mesh.field.setNumber(2, "SizeMin", h_pillar)
+    gmsh.model.mesh.field.setNumber(2, "SizeMax", h_far)
+    gmsh.model.mesh.field.setNumber(2, "DistMin", 2 * pillar_radius)
+    gmsh.model.mesh.field.setNumber(2, "DistMax", 4 * pillar_radius)
+    gmsh.model.mesh.field.setAsBackgroundMesh(2)
+
+    gmsh.model.mesh.generate(2)
+
+
+def build_porous_lattice_mesh(nx=4, ny=4, pillar_radius=0.08, h_pillar=0.015, h_far=0.05):
+    """Build a periodic-pillar porous-lattice mesh (a unit channel packed
+    with an nx-by-ny grid of circular pillars) and import it into dolfinx
+    with tagged boundary facets, for a Stokes flow -> effective-permeability
+    study (see ``viva_fenics.processes.flow.PorousFlowStep``).
+
+    Args:
+        nx, ny: pillar grid dimensions.
+        pillar_radius: pillar disk radius -- the porosity-control knob (must
+            be < half the lattice spacing to avoid pillar-pillar/pillar-wall
+            overlap; see ``_build_porous_lattice_model``).
+        h_pillar: target mesh element size right at every pillar boundary
+            (the accuracy driver for resolving the boundary-layer flow
+            through the pore throats between adjacent pillars).
+        h_far: target mesh element size away from the pillars (channel
+            inlet/outlet/walls).
+
+    Returns:
+        (domain, facet_tags, markers, porosity) tuple: a real dolfinx
+        ``Mesh`` imported from the gmsh triangulation, a ``MeshTags`` over
+        exterior facets whose ``.values`` match ``POROUS_LATTICE_MARKERS``,
+        that markers dict itself, and the FEM-ASSEMBLED fluid-area fraction
+        (``integral(1) dx`` over the imported mesh, divided by the channel's
+        total L*H area) -- a real reading off the actual meshed domain, not
+        the ``lattice_porosity`` closed-form estimate (see that function's
+        docstring for why they only approximately agree).
+    """
+    gmsh.initialize()
+    try:
+        gmsh.option.setNumber("General.Terminal", 0)
+        _build_porous_lattice_model(nx, ny, pillar_radius, h_pillar, h_far)
+        mesh_data = dgmsh.model_to_mesh(gmsh.model, MPI.COMM_WORLD, 0, gdim=2)
+        domain = mesh_data.mesh
+        facet_tags = mesh_data.facet_tags
+    finally:
+        gmsh.finalize()
+
+    one = fem.Constant(domain, PETSc.ScalarType(1.0))
+    area_form = fem.form(one * ufl.dx)
+    area = float(domain.comm.allreduce(fem.assemble_scalar(area_form), op=MPI.SUM))
+    porosity = area / (POROUS_DOMAIN_LENGTH * POROUS_DOMAIN_HEIGHT)
+
+    return domain, facet_tags, dict(POROUS_LATTICE_MARKERS), porosity
+
+
 def node_coords(V):
     """Return dof coordinates for V, shape (N, 2)."""
     return V.tabulate_dof_coordinates()[:, :2]

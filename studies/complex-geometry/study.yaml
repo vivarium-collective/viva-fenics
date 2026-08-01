@@ -1,171 +1,242 @@
 schema_version: 4
 name: complex-geometry
-title: "Complex geometry: gmsh-generated non-trivial domains"
+title: "Complex geometry: Stokes flow through a porous pillar lattice"
 created: '2026-07-31'
 status: planned
 phase: Build
 
 question: |
-  Does a real gmsh-constructed non-trivial planar geometry -- imported into
-  dolfinx via `dolfinx.io.gmsh.model_to_mesh` -- produce a genuine
-  unstructured triangulation with a positive cell count, and does a real
-  Poisson solve on that imported mesh (homogeneous Dirichlet boundary, a
-  constant interior source) stay finite, bounded, and non-trivially
-  nonzero, across three qualitatively different domain topologies (a
-  simply-connected domain with a circular hole, a non-convex re-entrant
-  corner, and a multiply-connected annulus)?
+  Does a real gmsh-constructed periodic array of circular pillars --
+  imported into dolfinx via `dolfinx.io.gmsh.model_to_mesh` -- support a
+  genuine steady Stokes (creeping) flow solve, driven by a prescribed
+  pressure drop, that stays approximately divergence-free and exactly
+  no-slip on every pillar and channel wall, and does the effective (Darcy)
+  permeability computed from that flow DECREASE monotonically as the
+  lattice's porosity decreases -- the Kozeny-Carman-type physical trend
+  expected of any real porous microstructure?
 hypothesis: |
-  The gmsh -> dolfinx import path is standard and robust for any of these
-  three domains, so each should import with a cell count well above a
-  trivial handful, and -Laplacian(u) = 1 with u=0 on the full boundary
-  should have a smooth, non-negative (maximum-principle), interior-peaked
-  solution on every one of them -- confirming the FEniCSx bridge works on
-  genuinely non-trivial, non-rectangular domains, not only the unit square
-  every other study in this investigation uses.
+  A real Taylor-Hood (P2 velocity / P1 pressure) mixed dolfinx solve on the
+  gmsh-generated pillar-lattice mesh, driven by a "do-nothing"
+  pressure-boundary-load formulation (no-slip on walls+pillars, pressure
+  prescribed only as a natural momentum-equation load at the open
+  inflow/outflow boundaries -- see `viva_fenics/processes/flow.py`'s module
+  comment above `PorousFlowStep`), should produce a physically valid
+  creeping-flow field on every lattice density tried, and the
+  volume-averaged x-velocity this field produces -- fed through Darcy's law
+  -- should fall as the pillar packing gets denser (porosity drops),
+  matching the qualitative Kozeny-Carman scaling (k ~ phi^3/(1-phi)^2) even
+  though a 4-point sweep cannot independently validate that scaling's exact
+  exponents.
 objective: |
-  Build the `complex_geometry` composite (a single `ComplexGeometryStep`:
-  gmsh geometry construction -> dolfinx import -> Poisson solve) for each of
-  the three named geometries (obstacle, L-shape, annulus) and verify (a)
-  each mesh imports with a positive, non-trivial cell count and (b) each
-  solve returns a finite, bounded, non-trivial solution field.
+  Build the `porous_lattice` composite (a single `PorousFlowStep`: gmsh
+  pillar-lattice geometry construction -> dolfinx Taylor-Hood import ->
+  steady Stokes solve -> Darcy permeability) for a baseline porosity plus 3
+  porosity variants (sweeping `pillar_radius` at fixed 4x4 lattice density)
+  and verify (a) every solve is approximately divergence-free and exactly
+  no-slip on every pillar/wall boundary, and (b) the effective permeability
+  k_eff decreases monotonically as porosity decreases across all 4 points.
 description: |
-  Wraps a single `ComplexGeometryStep` in the `complex_geometry` composite
-  generator (Task 11). The Step is stateless -- given only a named geometry
-  + mesh resolution + polynomial degree, it: (1) builds the geometry with
-  the real gmsh Python API (`viva_fenics.fem_gmsh`) -- constructive solid
-  geometry (`gmsh.model.occ`) boolean cuts producing an obstacle domain
-  (unit square minus a circular hole), an L-shaped domain (unit square minus
-  its upper-right quadrant), or an annulus (outer disk minus a concentric
-  inner disk); (2) imports the resulting unstructured triangulation into a
-  dolfinx `Mesh` via `dolfinx.io.gmsh.model_to_mesh(gmsh.model, comm, rank,
-  gdim=2)`; and (3) solves the Poisson equation -Laplacian(u) = 1 with a
-  homogeneous Dirichlet boundary condition on the FULL exterior boundary
-  (including the inner hole boundary for obstacle/annulus) -- a real
-  `dolfinx.fem.petsc.LinearProblem` assembled and solved on the imported
-  mesh's true cells, not the unit square every other study in this
-  investigation uses.
+  Wraps a single `PorousFlowStep` in the `porous_lattice` composite
+  generator. The Step is stateless -- given only a pillar-lattice
+  configuration (grid size, pillar radius, mesh grading, viscosity,
+  pressure drop), it: (1) builds the geometry with the real gmsh Python API
+  (`viva_fenics.fem_gmsh.build_porous_lattice_mesh`) -- a unit channel
+  rectangle with an nx-by-ny grid of circular pillars boolean-cut out
+  (`gmsh.model.occ`), with 4 tagged boundary groups (inflow/outflow/
+  walls/pillars) and a mesh graded finer at every pillar boundary than in
+  the open channel interior; (2) imports the resulting unstructured
+  triangulation into a dolfinx Taylor-Hood MIXED function space (P2 vector
+  velocity / P1 scalar pressure, one `basix.ufl.mixed_element`, following
+  the dolfinx 0.11 Stokes demo's `mixed_direct()` pattern); and (3) solves
+  the steady Stokes equations (-div(2*mu*epsilon(u) - p*I) = 0, div(u) = 0)
+  with no-slip velocity on the channel walls and EVERY pillar, and the
+  pressure drop imposed as a "do-nothing" natural boundary LOAD (not a
+  Dirichlet constraint on the pressure space -- see the module comment
+  above `PorousFlowStep` for why the more naive Dirichlet-pressure
+  formulation was tried first and found to drive ~zero net flow) at the
+  open inflow/outflow boundaries. A SINGLE linear saddle-point
+  `dolfinx.fem.petsc.LinearProblem` solve produces the full field -- no
+  time-stepping, since creeping flow has no unsteady term.
 
-  This is an ADVANCED, showcase-tier study: it is the investigation's only
-  demonstration that the FEniCSx bridge works on genuinely non-trivial,
-  gmsh-generated domain topologies (a hole, a re-entrant corner, a
-  multiply-connected ring), not just the unit square's built-in structured
-  triangulation every other study relies on.
+  The effective (Darcy) permeability is then read directly off the solved
+  field: k_eff = mu * <u_x> * L / delta_p, where <u_x> is the real
+  FEM-assembled volume average of the x-velocity over the fluid domain (not
+  a nodal average) and L is the channel length. Porosity itself is also a
+  real FEM-assembled reading (fluid-area fraction of the imported mesh, not
+  the closed-form geometry estimate -- see `fem_gmsh.build_porous_lattice_
+  mesh`'s docstring for why the two only approximately agree).
+
+  This is an ADVANCED, showcase-tier study: it turns the investigation's
+  earlier "Poisson on a gmsh hole" demonstration into a genuine porous-media
+  engineering result -- a real creeping-flow solve on a periodic
+  microstructure, with a physically meaningful derived quantity (effective
+  permeability) that varies correctly with the medium's geometry, not just
+  a bounded scalar field.
 
 baseline:
-- name: complex-geometry-baseline
-  composite: viva_fenics.composites.complex_geometry.complex_geometry
+- name: porous-lattice-baseline
+  composite: viva_fenics.composites.flow.porous_lattice
   params:
-    geometry: obstacle
-    resolution: 32
+    nx: 4
+    ny: 4
+    pillar_radius: 0.08
+    h_pillar: 0.015
+    h_far: 0.05
+    mu: 1.0
+    pressure_drop: 1.0
 
 variants:
-- name: lshape
-  base_composite: complex-geometry-baseline
+- name: sparse
+  base_composite: porous-lattice-baseline
   parameter_overrides:
-    geometry: lshape
-- name: annulus
-  base_composite: complex-geometry-baseline
+    pillar_radius: 0.04
+- name: medium
+  base_composite: porous-lattice-baseline
   parameter_overrides:
-    geometry: annulus
+    pillar_radius: 0.06
+- name: dense
+  base_composite: porous-lattice-baseline
+  parameter_overrides:
+    pillar_radius: 0.10
 
 expected_behavior:
-- name: mesh-imports-with-positive-cells
-  en: "Each of the three gmsh geometries (obstacle, lshape, annulus) imports into a dolfinx mesh with more than 20 cells at resolution=32."
-  observable: n_cells
-  condition: n_cells(geometry) > 20 for every geometry
+- name: stokes-flow-divergence-free-and-noslip
+  en: >-
+    On every one of the 4 porosities, the steady Stokes solve produces a
+    velocity field with small mean |div(u)| (approximately divergence-free
+    -- Taylor-Hood is an LBB-stable pairing, much closer to exact
+    incompressibility than the IPCS operator splitting used elsewhere in
+    this investigation) AND exactly zero velocity (to solver precision) on
+    every no-slip (wall + pillar) boundary dof.
+  observable: divergence_mean
+  condition: max(divergence_mean across variants) < 1e-2 and max(noslip_max_speed across variants) < 1e-8
   rationale: >-
-    A real gmsh triangulation of any of these domains at resolution=32
-    (target element size h=1/32) should produce hundreds of triangles; a
-    near-zero or trivial cell count would indicate a degenerate/empty
-    geometry was silently imported (e.g. a failed boolean cut).
+    A real Taylor-Hood mixed Stokes solve with correctly-applied no-slip
+    Dirichlet BCs should satisfy both properties essentially exactly (up to
+    discretization/solver tolerance); a large divergence residual or a
+    nonzero no-slip speed would indicate a broken mesh import, a
+    misclassified boundary group, or an incorrectly assembled saddle-point
+    system.
   measure:
     kind: derived_scalar
-    field: min_n_cells_across_geometries
+    field: max_divergence_mean_across_variants
   expect:
-    op: ">"
-    value: 20
-- name: solution-finite-bounded-nontrivial
-  en: "The Poisson solution on each geometry is finite everywhere, non-negative everywhere (maximum principle), and reaches a max value above 1e-6 (non-trivially nonzero) and below 1.0 (bounded)."
-  observable: solution
-  condition: 1e-6 < max(solution) < 1.0 and min(solution) > -1e-8 and all(isfinite(solution)) for every geometry
+    op: "<"
+    value: 1.0e-2
+- name: permeability-decreases-with-porosity
+  en: >-
+    The effective (Darcy) permeability k_eff DECREASES monotonically as
+    porosity decreases across the 4-point sweep (sparse -> medium ->
+    baseline -> dense), matching the qualitative Kozeny-Carman-type trend
+    expected of a real porous microstructure.
+  observable: k_eff
+  condition: k_eff(porosity_i) > k_eff(porosity_i+1) for every consecutive pair, sorted by porosity descending
   rationale: >-
-    -Laplacian(u) = 1 with u=0 on the boundary has a smooth, bounded,
-    strictly-positive-interior solution by the maximum principle for any
-    of these domains; a NaN/Inf, an all-zero solution, or a negative value
-    would indicate the boundary condition or the imported mesh's
-    orientation/connectivity was broken.
+    Darcy's law relates volume-averaged flow to permeability at fixed
+    driving pressure drop; a denser pillar packing leaves less open pore
+    space for the fluid to move through, so at the SAME pressure drop the
+    volume-averaged velocity -- and hence k_eff -- must fall as porosity
+    falls. A non-monotonic or flat trend would indicate the porosity sweep
+    isn't actually changing the flow resistance (e.g. a geometry-generation
+    bug where pillar_radius silently has no effect).
   measure:
     kind: derived_scalar
-    field: min_solution_max_across_geometries
+    field: min_consecutive_k_eff_ratio
   expect:
     op: ">"
-    value: 1.0e-6
+    value: 1.0
 
 behavior_tests:
-- name: mesh-imports-with-positive-cells
+- name: mesh-imports-with-tagged-boundaries
   classification: primary
   description: |
-    n_cells (the imported dolfinx mesh's local cell count, read directly
-    off `domain.topology.index_map(tdim).size_local`, not estimated) for
-    EVERY one of the three geometries (obstacle, lshape, annulus) at
-    resolution=32 must exceed 20.
+    n_cells (the imported dolfinx mesh's local cell count) for EVERY one of
+    the 4 porosity variants must exceed 20, and every boundary facet group
+    (inflow/outflow/walls/pillars) must be non-empty (checked directly in
+    tests/test_complex_geometry.py; this run's floor is a coarse sanity
+    check on the same underlying mesh-import path).
   measure:
     kind: derived_scalar
-    field: min_n_cells_across_geometries
+    field: min_n_cells_across_variants
   pass_if:
     op: ">"
     value: 20
     provenance:
       kind: calibration
       note: >-
-        Observed cell counts at resolution=32 run in the low thousands for
-        all three geometries (see studies/complex-geometry/sims/run.py's
+        Observed cell counts at nx=ny=4, h_pillar=0.015 run 5000-9000 across
+        the porosity sweep (see studies/complex-geometry/sims/run.py's
         printed summary); 20 is a generous floor that only fails on a
-        genuinely degenerate/empty import, not on any real triangulation
-        density.
-  requires_simulation: complex-geometry-baseline
-- name: solution-finite-bounded-nontrivial
+        genuinely degenerate/empty import.
+  requires_simulation: porous-lattice-baseline
+- name: stokes-flow-divergence-free-and-noslip
   classification: primary
   description: |
-    For every one of the three geometries, the Poisson solution
-    (-Laplacian(u)=1, u=0 on the full boundary) must be finite everywhere,
-    non-negative everywhere, and reach a max value strictly between 1e-6
-    and 1.0.
+    For every one of the 4 porosities, the Stokes solve's mean |div(u)|
+    must stay below 1e-2 (approximately divergence-free) AND the max speed
+    over every no-slip boundary dof must stay below 1e-8 (exact no-slip to
+    solver precision).
   measure:
     kind: derived_scalar
-    field: min_solution_max_across_geometries
+    field: max_divergence_mean_across_variants
   pass_if:
-    op: ">"
-    value: 1.0e-6
+    op: "<"
+    value: 1.0e-2
+    provenance:
+      kind: calibration
+      note: >-
+        Observed mean|div(u)| at production resolution runs 3e-5-1e-4
+        across the porosity sweep (a real Taylor-Hood LBB-stable pairing is
+        much closer to exact incompressibility than this investigation's
+        IPCS processes) -- 1e-2 leaves two orders of magnitude of headroom
+        while still catching a genuinely broken assembly.
+  requires_simulation: porous-lattice-baseline
+- name: noslip-satisfied-on-pillars
+  classification: supporting
+  description: |
+    Max speed over every no-slip (wall + pillar) boundary dof must stay
+    below 1e-8 across all 4 porosities -- confirms the Dirichlet BC landed
+    on the real tagged pillar facets, not silently skipped or misapplied to
+    the wrong boundary group.
+  measure:
+    kind: derived_scalar
+    field: max_noslip_speed_across_variants
+  pass_if:
+    op: "<"
+    value: 1.0e-8
     provenance:
       kind: theory
       note: >-
-        The maximum principle for -Laplacian(u)=const>0 with u=0 on the
-        boundary guarantees a smooth, non-negative, interior-peaked
-        solution on any of these domains; a solution that is all-zero,
-        negative anywhere, or non-finite indicates a broken boundary
-        condition or a corrupted imported mesh, not solver noise.
-  requires_simulation: complex-geometry-baseline
-- name: solution-stays-bounded
-  classification: supporting
+        Dirichlet BC dof elimination zeroes these dofs to machine precision
+        by construction; observed max is exactly 0.0 in development runs, a
+        1e-8 floor leaves comfortable headroom for solver round-off while
+        still catching a genuinely leaked/unapplied BC.
+  requires_simulation: porous-lattice-baseline
+- name: permeability-decreases-with-porosity
+  classification: primary
   description: |
-    The Poisson solution's max value on every geometry must stay below 1.0
-    -- no blow-up from a malformed imported mesh (e.g. inverted-orientation
-    cells corrupting the stiffness-matrix assembly).
+    The effective permeability k_eff must be finite and strictly positive
+    at every porosity, AND must decrease monotonically (every consecutive
+    pair, sorted by porosity descending) across the 4-point sweep -- the
+    headline Kozeny-Carman-type physical trend this study exists to
+    demonstrate.
   measure:
     kind: derived_scalar
-    field: max_solution_max_across_geometries
+    field: min_consecutive_k_eff_ratio
   pass_if:
-    op: "<"
+    op: ">"
     value: 1.0
     provenance:
-      kind: calibration
+      kind: theory
       note: >-
-        Observed peak solution values at resolution=32 sit around
-        0.01-0.04 across all three geometries (see run.py's printed
-        summary); 1.0 leaves two orders of magnitude of headroom while
-        still catching a genuine assembly/orientation blow-up.
-  requires_simulation: complex-geometry-baseline
+        Darcy's law at fixed driving pressure drop: a denser pillar packing
+        leaves less open pore space, so the volume-averaged velocity (and
+        hence k_eff) must fall as porosity falls -- see this study's
+        expected_behavior for the full argument. The observed 4-point
+        sweep shows a >10x drop in k_eff from the sparsest to the densest
+        lattice (see studies/complex-geometry/sims/run.py's printed
+        summary for the exact achieved values).
+  requires_simulation: porous-lattice-baseline
 
 pipeline_gate:
   prerequisites:
@@ -174,7 +245,7 @@ pipeline_gate:
   enables: []
   proceed_condition: |
     No further studies in this investigation currently depend on
-    complex-geometry; it is the investigation's non-trivial-domain
+    complex-geometry; it is the investigation's porous-media/Stokes-flow
     showcase, built directly on the validated dolfinx bridge
     (poisson-validation) rather than on the scalar diffusion/reaction
     studies -- it needs a correct FEM solve, not the transient stores this
@@ -184,23 +255,29 @@ canonical_runs:
 - name: default
   script: studies/complex-geometry/sims/run.py
   args: []
-  label: "Poisson solve on gmsh-generated obstacle/L-shape/annulus domains (resolution=32)"
+  label: "Stokes flow through a porous pillar lattice, 4-point porosity sweep -> effective permeability"
   default: true
 
 visualizations:
-- name: field-heatmap-obstacle
-  chart: viz/field_obstacle.html
+- name: flow-field
+  chart: viz/flow_field.html
   render: "python sims/run.py"
-- name: mesh3d
-  chart: viz/mesh3d.html
+- name: velocity-magnitude
+  chart: viz/velocity_magnitude.html
+  render: "python sims/run.py"
+- name: permeability-vs-porosity
+  chart: viz/permeability_vs_porosity.html
   render: "python sims/run.py"
 
 embed_visualizations:
-- name: field-heatmap-obstacle
-  url: /studies/complex-geometry/viz/field_obstacle.html
-  description: "Interactive Plotly heatmap of the solution field on the obstacle geometry."
-- name: mesh3d
-  url: /studies/complex-geometry/viz/mesh3d.html
-  description: "Interactive 3D Plotly view of the imported mesh across the three geometries."
+- name: flow-field
+  url: /studies/complex-geometry/viz/flow_field.html
+  description: "Velocity streamlines/quiver threading through the baseline pillar array (porosity~0.68)."
+- name: velocity-magnitude
+  url: /studies/complex-geometry/viz/velocity_magnitude.html
+  description: "Interpolated velocity-magnitude heatmap over the pillar lattice."
+- name: permeability-vs-porosity
+  url: /studies/complex-geometry/viz/permeability_vs_porosity.html
+  description: "Effective permeability k_eff vs porosity, with a Kozeny-Carman-shaped reference curve."
 
 conclusion: null

@@ -22,7 +22,7 @@ from .processes.reaction import (
     GrayScottReactionProcess,
     LinearDegradationProcess,
 )
-from .processes.flow import NavierStokesProcess, CylinderFlowProcess
+from .processes.flow import NavierStokesProcess, CylinderFlowProcess, PorousFlowStep
 from .processes.moving_boundary import MovingBoundaryProcess
 from .processes.complex_geometry import ComplexGeometryStep
 from .processes.amr import AdaptiveRefinementStep
@@ -37,6 +37,7 @@ _PROCESSES = (
     ("LinearDegradationProcess", LinearDegradationProcess),
     ("NavierStokesProcess", NavierStokesProcess),
     ("CylinderFlowProcess", CylinderFlowProcess),
+    ("PorousFlowStep", PorousFlowStep),
     ("MovingBoundaryProcess", MovingBoundaryProcess),
     ("ComplexGeometryStep", ComplexGeometryStep),
     ("AdaptiveRefinementStep", AdaptiveRefinementStep),

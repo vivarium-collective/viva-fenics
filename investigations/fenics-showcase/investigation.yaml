@@ -39,9 +39,10 @@ description: |
   velocity-pressure spaces, real surface-force-integral drag/lift);
   `moving-boundary` is the first
   deforming-domain demo (prescribed-ALE mesh motion re-solved every
-  substep); `complex-geometry` is the first non-rectangular-domain demo
-  (gmsh-constructed obstacle/L-shape/annulus topologies imported into
-  dolfinx). Runs are authored here (Task 7, extended Task 12); execution
+  substep); `complex-geometry` is the porous-media showpiece -- a real
+  Taylor-Hood mixed Stokes solve on a gmsh-generated periodic pillar
+  lattice, with the effective (Darcy) permeability computed from the
+  solved field and shown to fall as porosity falls. Runs are authored here (Task 7, extended Task 12); execution
   recorded into the workspace's `.pbg/runs.jsonl` run log plus behavior-test
   evaluation happens in Task 8.
 
@@ -64,8 +65,8 @@ executive:
     dynamics studies (`transient-diffusion`, `reaction-diffusion`) extend the
     bridge to time-stepping and cross-process coupling. Three ADVANCED
     studies (`navier-stokes`, `moving-boundary`, `complex-geometry`) push
-    the same bridge into fluid dynamics, deforming domains, and
-    gmsh-generated non-rectangular geometry.
+    the same bridge into fluid dynamics, deforming domains, and a real
+    porous-media Stokes-flow/effective-permeability result.
   verdict: |
     Authored and lint-clean: 7 studies, each with a real `@composite_generator`
     baseline, a `sims/run.py` canonical runner, and an interactive viz.
@@ -82,9 +83,10 @@ executive:
     the DFG 2D-2 benchmark's reference Cd/Cl/Strouhal
     (navier-stokes), a deforming-mesh diffusion solve whose boundary tracks
     the prescribed law to near machine precision with a domain measure that
-    scales with amplitude (moving-boundary), and finite, bounded,
-    non-trivial Poisson solutions on three gmsh-generated topologies
-    (complex-geometry).
+    scales with amplitude (moving-boundary), and a real Taylor-Hood Stokes
+    solve through a gmsh-generated porous pillar lattice whose effective
+    (Darcy) permeability falls monotonically (>10x across a 4-point sweep)
+    as porosity falls (complex-geometry).
   verdict_status: in-progress
   verdict_detail: |
     Task 7 scope: author the investigation + 4 core studies + runners and
@@ -112,8 +114,10 @@ scientific_argument:
     the same bridge that passes MMS/convergence checks and demonstrates
     store-wiring composability also drives a real incompressible
     Navier-Stokes solve, a prescribed-ALE deforming-mesh diffusion solve,
-    and Poisson solves on gmsh-generated non-rectangular topologies --
-    without departing from the bridge validated in the first four studies.
+    and a genuine porous-media engineering result -- effective permeability
+    from a Taylor-Hood mixed Stokes solve on a gmsh-generated pillar
+    lattice -- without departing from the bridge validated in the first
+    four studies.
   evidence_for:
   - "poisson-validation: l2_error ~2.8e-13 against a quadratic manufactured
     solution with degree-2 Lagrange elements (Galerkin-exact), well inside
@@ -142,17 +146,25 @@ scientific_argument:
     law to near machine precision, the FEM-assembled domain_measure's swing
     scales with oscillation amplitude across an amplitude sweep, and the
     diffusion field stays finite/bounded throughout on the deforming mesh."
-  - "complex-geometry: all three gmsh-generated topologies (obstacle,
-    L-shape, annulus) import with cell counts in the low thousands (well
-    above the 20-cell floor), and each Poisson solve is finite, bounded,
-    and non-trivially nonzero, matching the maximum-principle expectation."
+  - "complex-geometry: a real Taylor-Hood mixed Stokes solve on a
+    gmsh-generated periodic pillar lattice (nx=ny=4, cell counts in the
+    5000-9000 range) is approximately divergence-free (mean|div(u)|
+    3e-5-1e-4) and exactly no-slip on every wall/pillar boundary dof at
+    every one of 4 porosities (0.92, 0.82, 0.68, 0.50), and the effective
+    (Darcy) permeability k_eff computed from the volume-averaged velocity
+    decreases monotonically -- a >14x drop -- as porosity decreases,
+    matching the qualitative Kozeny-Carman-type trend expected of a real
+    porous microstructure; see the study's report for the exact achieved
+    k_eff(porosity) values and the honest caveat on the KC-shape fit
+    quality (a 4-point sweep cannot independently validate its exponents)."
   evidence_against:
   - "All seven studies use a single fixed random-free deterministic setup
     (one resolution/degree/parameter point per study beyond the declared
     sweeps); broader parameter robustness beyond the declared sweeps
     (resolution in mesh-convergence, rate in reaction-diffusion,
-    amplitude/mode in moving-boundary, geometry in complex-geometry) is
-    untested. navier-stokes in particular is a single production run at
+    amplitude/mode in moving-boundary, lattice density/mesh grading in
+    complex-geometry) is untested -- only pillar_radius (porosity) is
+    swept. navier-stokes in particular is a single production run at
     one mesh/dt/duration chosen for feasible wall-time, not a mesh- or
     dt-convergence study -- see its report for the accuracy/runtime
     tradeoff made."
@@ -209,6 +221,8 @@ acceptance_criteria:
 - study: moving-boundary
   behavior: field-stays-finite
 - study: complex-geometry
-  behavior: mesh-imports-with-positive-cells
+  behavior: mesh-imports-with-tagged-boundaries
 - study: complex-geometry
-  behavior: solution-finite-bounded-nontrivial
+  behavior: stokes-flow-divergence-free-and-noslip
+- study: complex-geometry
+  behavior: permeability-decreases-with-porosity

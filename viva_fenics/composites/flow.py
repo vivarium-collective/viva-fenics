@@ -14,7 +14,12 @@ from __future__ import annotations
 
 from viva_superpowers.composite_generator import composite_generator
 
-from viva_fenics.processes.flow import zero_fields, zero_channel_fields
+from viva_fenics.processes.flow import (
+    zero_fields,
+    zero_channel_fields,
+    POROUS_PRESSURE_DROP_DEFAULT,
+    POROUS_VISCOSITY_DEFAULT,
+)
 
 
 @composite_generator(
@@ -166,6 +171,96 @@ def vortex_street(core=None, *, reynolds=100.0, dt=0.0005, h_cylinder=0.008, h_f
                 "drag_coeff": ["stores", "drag_coeff"],
                 "lift_coeff": ["stores", "lift_coeff"],
                 "elapsed_time": ["stores", "elapsed_time"],
+            },
+        },
+    }
+
+
+@composite_generator(
+    name="porous_lattice",
+    description=(
+        "Steady Stokes flow through a periodic circular-pillar lattice "
+        "(real Taylor-Hood mixed dolfinx solve on a gmsh-generated porous "
+        "microstructure) -- computes the effective (Darcy) permeability "
+        "k_eff of the medium."
+    ),
+    parameters={
+        "nx": {"type": "integer", "default": 4, "description": "Pillar grid columns"},
+        "ny": {"type": "integer", "default": 4, "description": "Pillar grid rows"},
+        "pillar_radius": {"type": "number", "default": 0.08,
+                            "description": "Pillar disk radius (porosity-control knob; must be < half the lattice spacing)"},
+        "h_pillar": {"type": "number", "default": 0.015,
+                      "description": "Mesh element size at every pillar boundary (accuracy driver)"},
+        "h_far": {"type": "number", "default": 0.05,
+                   "description": "Mesh element size away from the pillars"},
+        "mu": {"type": "number", "default": POROUS_VISCOSITY_DEFAULT, "description": "Dynamic viscosity"},
+        "pressure_drop": {"type": "number", "default": POROUS_PRESSURE_DROP_DEFAULT,
+                            "description": "Prescribed pressure drop across the channel (inflow minus outflow)"},
+    },
+)
+def porous_lattice(
+    core=None, *, nx=4, ny=4, pillar_radius=0.08, h_pillar=0.015, h_far=0.05,
+    mu=POROUS_VISCOSITY_DEFAULT, pressure_drop=POROUS_PRESSURE_DROP_DEFAULT,
+):
+    return {
+        "porous_flow": {
+            "_type": "step",
+            "address": "local:PorousFlowStep",
+            "config": {
+                "nx": nx, "ny": ny, "pillar_radius": pillar_radius,
+                "h_pillar": h_pillar, "h_far": h_far,
+                "mu": mu, "pressure_drop": pressure_drop,
+            },
+            "inputs": {},
+            "outputs": {
+                "velocity_x": ["stores", "velocity_x"],
+                "velocity_y": ["stores", "velocity_y"],
+                "pressure": ["stores", "pressure"],
+                "porosity": ["stores", "porosity"],
+                "mean_ux": ["stores", "mean_ux"],
+                "k_eff": ["stores", "k_eff"],
+                "divergence_mean": ["stores", "divergence_mean"],
+                "noslip_max_speed": ["stores", "noslip_max_speed"],
+                "n_cells": ["stores", "n_cells"],
+            },
+        },
+        "stores": {
+            "velocity_x": [],
+            "velocity_y": [],
+            "pressure": [],
+            "porosity": 0.0,
+            "mean_ux": 0.0,
+            "k_eff": 0.0,
+            "divergence_mean": 0.0,
+            "noslip_max_speed": 0.0,
+            "n_cells": 0,
+        },
+        "emitter": {
+            "_type": "step",
+            "address": "local:RAMEmitter",
+            "config": {
+                "emit": {
+                    "velocity_x": "array[float]",
+                    "velocity_y": "array[float]",
+                    "pressure": "array[float]",
+                    "porosity": "float",
+                    "mean_ux": "float",
+                    "k_eff": "float",
+                    "divergence_mean": "float",
+                    "noslip_max_speed": "float",
+                    "n_cells": "integer",
+                },
+            },
+            "inputs": {
+                "velocity_x": ["stores", "velocity_x"],
+                "velocity_y": ["stores", "velocity_y"],
+                "pressure": ["stores", "pressure"],
+                "porosity": ["stores", "porosity"],
+                "mean_ux": ["stores", "mean_ux"],
+                "k_eff": ["stores", "k_eff"],
+                "divergence_mean": ["stores", "divergence_mean"],
+                "noslip_max_speed": ["stores", "noslip_max_speed"],
+                "n_cells": ["stores", "n_cells"],
             },
         },
     }

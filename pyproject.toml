@@ -21,3 +21,6 @@ packages = ["viva_fenics"]
 
 [tool.uv.sources]
 vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-workbench.git", branch = "main" }
+
+[project.optional-dependencies]
+dev = ["pytest"]

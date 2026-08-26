@@ -8,15 +8,22 @@
 # re-scaffolding, or by copying the current source from
 #   vivarium-collective/viva-template/template/.github/workflows/<template>
 # template: build-and-push.yml
-# sha256: 9c3aade91217120961f0053a53f1e9207aeabcd6d0985e664382acc9a67c72fd
+# sha256: 73b641f347d62392b255d46c3f8377e01dd9696eba8cc10f8883e6faa5889617
 # <<< viva-template-provenance <<<
 
 name: Build and Push Workspace Image
 
+# OPT-IN, not auto-on-push. Building + pushing a full multi-arch Docker image on
+# every commit is heavy and rarely needed for a research workspace — and it fails
+# (and emails) whenever the workspace has no Dockerfile or a dep won't build in a
+# clean image, which is the common case. So this runs only when explicitly
+# dispatched (Actions tab → Run workflow) or on a release tag. Same policy the
+# publish-dashboard workflow already uses. A workspace that genuinely wants an
+# image published on every push can re-add `push: {branches: [main, master]}`.
 on:
+  workflow_dispatch:
   push:
-    branches: [main, master]
-  pull_request:
+    tags: ["v*"]
 
 concurrency:
   group: build-and-push-${{ github.ref }}

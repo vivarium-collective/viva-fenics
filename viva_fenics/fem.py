@@ -151,6 +151,165 @@ def diffusion_step(domain, V, u_n_array, source_array, dt, D, bc_value=None):
     return uh.x.array.copy()
 
 
+def advection_diffusion_step(
+    domain, V, u_n_array, source_array, dt, D,
+    velocity=None, soret=None, temperature_array=None,
+    bc_value=None, supg=True,
+):
+    """Advance one backward-Euler step of transient advection-diffusion with an
+    optional thermophoretic (Soret) drift term.
+
+    Extends :func:`diffusion_step` -- which solves
+
+        (u*v + dt*D*grad(u).grad(v)) dx = (u_n + dt*source) * v dx
+
+    -- by adding, to the SAME backward-Euler bilinear form, two optional terms
+    that leave the ``velocity=None, soret=None`` call bit-for-bit identical to
+    ``diffusion_step`` (it is the strict generalisation; see the regression
+    test ``test_zero_velocity_matches_diffusion_step``):
+
+    1. **Advection** -- ``+ dt * dot(w, grad(u)) * v dx`` for a divergence-free
+       velocity field ``w`` (the Darcy upflow of the vent / pore). With a
+       no-penetration (``w.n = 0``) or Dirichlet boundary this conserves the
+       field integral up to the source; with ``supg=True`` a
+       streamline-upwind Petrov-Galerkin consistent stabilisation is added so
+       the solution stays monotone when the cell Peclet number exceeds 1
+       (``tau = h / (2|w|)``, the standard high-Peclet limit), instead of the
+       spurious node-to-node oscillations a raw Galerkin advection term
+       produces.
+    2. **Thermophoretic drift (Soret)** -- a conservative thermodiffusive
+       flux ``J_T = -D * S_T * u * grad(T)`` (``S_T > 0`` thermophobic, species
+       accumulating on the cold side -- the sign the Baaske thermal-trap column
+       uses) added in integrated-by-parts (divergence) form,
+       ``+ dt * D * S_T * u * grad(T).grad(v) dx``. Because it is the weak
+       divergence of a flux, the natural boundary is *zero total flux*
+       (``J_T.n = 0``), so the trap redistributes the field (cold-side
+       enrichment) while conserving its integral exactly -- the regime the
+       og-03 cross-pore trap lives in (see
+       ``test_soret_drift_conserves_and_concentrates``).
+
+    Args:
+        domain, V: dolfinx mesh + scalar function space (as ``diffusion_step``).
+        u_n_array, source_array, dt, D, bc_value: as ``diffusion_step``.
+        velocity: the advecting field ``w``. ``None`` (no advection), a
+            constant ``(wx, wy)`` tuple (uniform upflow), or a nodal array on
+            the vector space ``(V.degree)`` (a resolved flow field, e.g. from
+            ``PorousFlowStep``). Length must be ``2 * n_scalar_dofs`` for the
+            nodal form.
+        soret: Soret coefficient ``S_T`` (1/K). Requires ``temperature_array``.
+        temperature_array: nodal temperature field on ``V`` (same layout as
+            ``u_n_array``); its gradient drives the drift.
+        supg: enable SUPG stabilisation of the advection term (default True).
+
+    Returns:
+        np.ndarray of nodal solution values after the step.
+    """
+    gdim = domain.geometry.dim
+    u_n = fem.Function(V)
+    u_n.x.array[:] = u_n_array
+
+    source = fem.Function(V)
+    source.x.array[:] = source_array
+
+    u = ufl.TrialFunction(V)
+    v = ufl.TestFunction(V)
+
+    dt_c = fem.Constant(domain, float(dt))
+    D_c = fem.Constant(domain, float(D))
+
+    # Effective advecting velocity w_eff = w (flow) + w_T (thermophoretic drift).
+    # A constant uniform flow is passed as a (wx, wy) tuple/list; a resolved
+    # flow field is passed as a nodal numpy array on the vector space.
+    w_eff = None
+    if velocity is not None:
+        degree = V.element.basix_element.degree
+        W = fem.functionspace(domain, ("Lagrange", degree, (gdim,)))
+        w_fn = fem.Function(W)
+        if isinstance(velocity, (tuple, list)):
+            wx, wy = float(velocity[0]), float(velocity[1])
+            w_fn.interpolate(lambda x: np.stack([np.full(x.shape[1], wx),
+                                                 np.full(x.shape[1], wy)]))
+        else:
+            w_fn.x.array[:] = np.asarray(velocity, dtype=float)
+        w_eff = w_fn
+
+    a = (u * v + dt_c * D_c * ufl.dot(ufl.grad(u), ufl.grad(v))) * ufl.dx
+    L = (u_n + dt_c * source) * v * ufl.dx
+
+    # Thermophoretic (Soret) flux J_T = -D*S_T*u*grad(T), added in conservative
+    # (integrated-by-parts) form so the natural boundary is zero total flux and
+    # the trap conserves the field integral while concentrating it cold-side.
+    if soret is not None and temperature_array is not None:
+        T_fn = fem.Function(V)
+        T_fn.x.array[:] = np.asarray(temperature_array, dtype=float)
+        soret_c = fem.Constant(domain, float(soret))
+        a += dt_c * D_c * soret_c * u * ufl.dot(ufl.grad(T_fn), ufl.grad(v)) * ufl.dx
+
+    if w_eff is not None:
+        a += dt_c * ufl.dot(w_eff, ufl.grad(u)) * v * ufl.dx
+        if supg:
+            # Transient-consistent SUPG: the strong backward-Euler residual
+            # R = (u - u_n) + dt*(w.grad(u)) - dt*source - dt*D*div(grad u)
+            # (the last term = 0 for P1) weighted by tau*(w.grad(v)), split into
+            # implicit (u, dt*w.grad(u)) and explicit (u_n, dt*source) parts.
+            # tau = h/(2|w|) is the standard high-Peclet streamline-upwind
+            # scale; note R carries no 1/dt factor -- weighting by 1/dt here
+            # over-stabilises by O(1/dt) and corrupts the field at small dt.
+            h = ufl.CellDiameter(domain)
+            wnorm = ufl.sqrt(ufl.dot(w_eff, w_eff) + 1e-30)
+            tau = h / (2.0 * wnorm)
+            r_impl = u + dt_c * ufl.dot(w_eff, ufl.grad(u))
+            r_expl = u_n + dt_c * source
+            a += tau * ufl.dot(w_eff, ufl.grad(v)) * r_impl * ufl.dx
+            L += tau * ufl.dot(w_eff, ufl.grad(v)) * r_expl * ufl.dx
+
+    # bc_value: None (all-Neumann), a float (pin x=0 face only, as
+    # diffusion_step), or a dict {"x0": v0, "x1": v1} to pin either/both of the
+    # x=0 / x=1 faces (the inlet/outlet faces of the vent-pore column, and the
+    # advection-diffusion MMS boundary-layer problem).
+    bcs = []
+    if bc_value is not None:
+        tdim = domain.topology.dim
+        domain.topology.create_connectivity(tdim - 1, tdim)
+        faces = bc_value if isinstance(bc_value, dict) else {"x0": bc_value}
+        _locators = {
+            "x0": lambda x: np.isclose(x[0], 0.0),
+            "x1": lambda x: np.isclose(x[0], 1.0),
+        }
+        for key, val in faces.items():
+            facets = mesh.locate_entities_boundary(domain, tdim - 1, _locators[key])
+            dofs = fem.locate_dofs_topological(V, tdim - 1, facets)
+            bc_fn = fem.Function(V)
+            bc_fn.x.array[:] = val
+            bcs.append(fem.dirichletbc(bc_fn, dofs))
+
+    prefix = f"viva_fenics_advdiff_{next(_prefix_counter)}_"
+    problem = LinearProblem(
+        a, L, bcs=bcs,
+        petsc_options_prefix=prefix,
+        petsc_options={"ksp_type": "preonly", "pc_type": "lu"},
+    )
+    uh = problem.solve()
+    return uh.x.array.copy()
+
+
+def advection_diffusion_mms_bc(domain, V, wx, D, resolution):
+    """Dirichlet BC + analytic solution for the 1-D boundary-layer manufactured
+    solution of steady advection-diffusion -D*u'' + wx*u' = 0 on x in [0,1]
+    with u(0)=0, u(1)=1 (Neumann top/bottom): u(x) = (exp(wx*x/D)-1)/(exp(wx/D)-1).
+
+    Returns (bc_fn_array, exact_fn) -- ``bc_fn_array`` pins x=0 to 0 and x=1 to
+    1 (used via a two-face Dirichlet BC the caller builds), ``exact_fn`` is a
+    numpy callable x->u for ``l2_error``.
+    """
+    Pe = wx / D
+
+    def exact_fn(x):
+        return (np.exp(Pe * x[0]) - 1.0) / (np.expm1(Pe))
+
+    return exact_fn
+
+
 def field_integral(domain, V, array):
     """Integrate a nodal field over the domain: returns a float scalar of
     integral(u) dx, computed via dolfinx's assemble_scalar (consistent with

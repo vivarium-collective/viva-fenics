@@ -19,6 +19,7 @@ except Exception:  # noqa: BLE001 — any import error means no usable backend
 # Modules that need the dolfinx backend (import it, or import viva_fenics.*,
 # which pulls the solver process modules via build_core).
 _BACKEND_TEST_MODULES = [
+    "test_advection_diffusion.py",
     "test_amr.py", "test_complex_geometry.py", "test_convergence.py",
     "test_core.py", "test_core_registration.py", "test_diffusion.py",
     "test_fem.py", "test_flow.py", "test_morphogen_gradient.py",

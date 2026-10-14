@@ -23,6 +23,7 @@ from .processes.reaction import (
     LinearDegradationProcess,
 )
 from .processes.flow import NavierStokesProcess, CylinderFlowProcess, PorousFlowStep
+from .processes.transport import AdvectionDiffusionProcess
 from .processes.moving_boundary import MovingBoundaryProcess
 from .processes.peristalsis import PeristalticWallProcess, PeristalticFlowProcess
 from .processes.amr import AdaptiveRefinementStep
@@ -32,6 +33,7 @@ from .types import register_types
 _PROCESSES = (
     ("PoissonSolverStep", PoissonSolverStep),
     ("DiffusionProcess", DiffusionProcess),
+    ("AdvectionDiffusionProcess", AdvectionDiffusionProcess),
     ("LogisticReactionProcess", LogisticReactionProcess),
     ("GrayScottReactionProcess", GrayScottReactionProcess),
     ("LinearDegradationProcess", LinearDegradationProcess),

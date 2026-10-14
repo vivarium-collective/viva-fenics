@@ -9,6 +9,7 @@ from . import convergence  # noqa: F401
 from . import flow as _flow_module  # noqa: F401
 from . import moving_boundary as _moving_boundary_module  # noqa: F401
 from . import amr as _amr_module  # noqa: F401
+from . import reactive_transport as _reactive_transport_module  # noqa: F401
 from .poisson import poisson_baseline, high_order_verification
 from .diffusion import transient_diffusion
 from .reaction_diffusion import reaction_diffusion
@@ -18,6 +19,7 @@ from .convergence import mesh_convergence
 from .flow import navier_stokes, vortex_street
 from .moving_boundary import moving_boundary
 from .amr import adaptive_refinement
+from .reactive_transport import reactive_transport
 
 __all__ = [
     "poisson_baseline",
@@ -31,4 +33,5 @@ __all__ = [
     "vortex_street",
     "moving_boundary",
     "adaptive_refinement",
+    "reactive_transport",
 ]

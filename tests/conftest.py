@@ -25,6 +25,7 @@ _BACKEND_TEST_MODULES = [
     "test_fem.py", "test_flow.py", "test_morphogen_gradient.py",
     "test_moving_boundary.py", "test_peristalsis.py", "test_poisson.py",
     "test_reaction_diffusion.py", "test_turing_patterns.py", "test_viz.py",
+    "test_pore3d_multisolute.py",
 ]
 
 collect_ignore = [] if _HAVE_BACKEND else list(_BACKEND_TEST_MODULES)

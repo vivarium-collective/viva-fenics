@@ -226,9 +226,17 @@ def advection_diffusion_step(
         W = fem.functionspace(domain, ("Lagrange", degree, (gdim,)))
         w_fn = fem.Function(W)
         if isinstance(velocity, (tuple, list)):
-            wx, wy = float(velocity[0]), float(velocity[1])
-            w_fn.interpolate(lambda x: np.stack([np.full(x.shape[1], wx),
-                                                 np.full(x.shape[1], wy)]))
+            comps = [float(c) for c in velocity]
+            if len(comps) != gdim:
+                raise ValueError(
+                    f"constant velocity needs {gdim} components for a {gdim}-D "
+                    f"mesh, got {len(comps)}"
+                )
+            # gdim-general uniform field (was hardcoded to (wx, wy); now 2-D and
+            # 3-D both flow through so the same solver drives the 3-D pore mesh).
+            w_fn.interpolate(
+                lambda x: np.stack([np.full(x.shape[1], c) for c in comps])
+            )
         else:
             w_fn.x.array[:] = np.asarray(velocity, dtype=float)
         w_eff = w_fn

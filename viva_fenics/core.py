@@ -27,6 +27,7 @@ from .processes.transport import AdvectionDiffusionProcess
 from .processes.moving_boundary import MovingBoundaryProcess
 from .processes.peristalsis import PeristalticWallProcess, PeristalticFlowProcess
 from .processes.amr import AdaptiveRefinementStep
+from .processes.pore3d import MultisolutePoreStep
 from .types import register_types
 
 # New processes (...) just need an import above and an entry here.
@@ -44,6 +45,7 @@ _PROCESSES = (
     ("PeristalticWallProcess", PeristalticWallProcess),
     ("PeristalticFlowProcess", PeristalticFlowProcess),
     ("AdaptiveRefinementStep", AdaptiveRefinementStep),
+    ("MultisolutePoreStep", MultisolutePoreStep),
 )
 
 

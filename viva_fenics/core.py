@@ -28,6 +28,10 @@ from .processes.moving_boundary import MovingBoundaryProcess
 from .processes.peristalsis import PeristalticWallProcess, PeristalticFlowProcess
 from .processes.amr import AdaptiveRefinementStep
 from .processes.pore3d import MultisolutePoreStep
+from .processes.spatial_transport import (
+    FenicsReactiveTransportProcess,
+    FenicsThermophoreticTrapProcess,
+)
 from .types import register_types
 
 # New processes (...) just need an import above and an entry here.
@@ -46,6 +50,8 @@ _PROCESSES = (
     ("PeristalticFlowProcess", PeristalticFlowProcess),
     ("AdaptiveRefinementStep", AdaptiveRefinementStep),
     ("MultisolutePoreStep", MultisolutePoreStep),
+    ("FenicsReactiveTransportProcess", FenicsReactiveTransportProcess),
+    ("FenicsThermophoreticTrapProcess", FenicsThermophoreticTrapProcess),
 )
 
 

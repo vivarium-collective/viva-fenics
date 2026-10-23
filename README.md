@@ -124,18 +124,18 @@ The workspace ships a self-contained static-bundle publish flow
 - `scripts/publish_dashboard.sh` — builds the static bundle locally
   (`pixi run bash scripts/publish_dashboard.sh [out-dir]`).
 - `.github/workflows/publish-dashboard.yml` — on every push to `main`, builds
-  the same bundle in CI and pushes it to the `gh-pages` branch's `dashboard/`
-  path.
+  the same bundle in CI and pushes it to the `gh-pages` branch's `workbench/`
+  path (a legacy `dashboard/` path redirects there).
 
 To preview the bundle locally:
 
 ```bash
-pixi run bash scripts/publish_dashboard.sh reports/published/dashboard
-# then open reports/published/dashboard/index.html
+pixi run bash scripts/publish_dashboard.sh reports/published/workbench
+# then open reports/published/workbench/index.html
 ```
 
 Once deployed, the live read-only dashboard is served at
-**https://vivarium-collective.github.io/viva-fenics/dashboard/** — a full
+**https://vivarium-collective.github.io/viva-fenics/workbench/** — a full
 mirror of the `fenics-showcase` investigation and its seven studies, browsable
 with no server, including each study's interactive Plotly/three.js
 visualization embedded read-only.

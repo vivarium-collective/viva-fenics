@@ -7,6 +7,9 @@ version = "0.1.0"
 
 [dependencies]
 python = "3.12.*"
+# boto3 (via vivarium-workbench) requires python-dateutil<3; conda-forge
+# otherwise resolves dateutil 3.0.0, which conflicts. Pin it below 3.
+python-dateutil = ">=2.8,<3"
 fenics-dolfinx = "*"
 mpich = "*"
 gmsh = "*"
@@ -22,4 +25,4 @@ vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-wo
 plotly = "*"
 pytest = "*"
 viva-fenics = { path = ".", editable = true }
-pbg-superpowers = { git = "https://github.com/vivarium-collective/viva-superpowers.git", branch = "main" }
+viva-superpowers = { git = "https://github.com/vivarium-collective/viva-superpowers.git", branch = "main" }

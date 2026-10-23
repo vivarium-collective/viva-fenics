@@ -42,6 +42,14 @@ jobs:
       - uses: prefix-dev/setup-pixi@v0.8.1
         with:
           cache: true
+          # Re-resolve instead of --locked: this workspace pins its framework
+          # deps (process-bigraph, vivarium-workbench, viva-superpowers) as
+          # `branch = "main"` git deps, so a committed pixi.lock goes stale the
+          # moment any upstream main moves — which made `pixi install --locked`
+          # reject an otherwise-valid lock on every publish. A publish job wants
+          # the CURRENT main deps anyway, so resolve fresh each run.
+          locked: false
+          frozen: false
 
       - name: Build read-only workbench snapshot
         # fenics-dolfinx is conda-only, so the static build runs under pixi's

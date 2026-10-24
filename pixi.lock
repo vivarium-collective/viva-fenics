@@ -374,7 +374,7 @@ environments:
       - pypi: git+https://github.com/vivarium-collective/viva-marketplace.git?rev=4e72e3b7f6c88d9683ae113a58e59bcafc5efb65#4e72e3b7f6c88d9683ae113a58e59bcafc5efb65
       - pypi: git+https://github.com/vivarium-collective/viva-superpowers.git?branch=main#43d4cf6e6b67343b767213727802160bfb228abc
       - pypi: git+https://github.com/vivarium-collective/viva-workspace.git?branch=main#cbd316a95f0c7e28eb0287176a5e10e327cde36f
-      - pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#aa2b7d2b6f0c6c9d87bf5968e82694e522eb7ea9
+      - pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#eb03bb121460a546e4d1cba0afe661d380d664e7
       - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/0c/d5/c5db1ea3394c6e1732fb3286b3bd878b59507a8f77d32a2cebda7d7b7cd4/donfig-0.8.1.post1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/10/d0/3d41544018b879e9c608c32bd5fb468fd87669d53c2dbf5ae67c1bad9882/jsonpointer-3.4-py3-none-any.whl
@@ -751,7 +751,7 @@ environments:
       - pypi: git+https://github.com/vivarium-collective/viva-marketplace.git?rev=4e72e3b7f6c88d9683ae113a58e59bcafc5efb65#4e72e3b7f6c88d9683ae113a58e59bcafc5efb65
       - pypi: git+https://github.com/vivarium-collective/viva-superpowers.git?branch=main#43d4cf6e6b67343b767213727802160bfb228abc
       - pypi: git+https://github.com/vivarium-collective/viva-workspace.git?branch=main#cbd316a95f0c7e28eb0287176a5e10e327cde36f
-      - pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#aa2b7d2b6f0c6c9d87bf5968e82694e522eb7ea9
+      - pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#eb03bb121460a546e4d1cba0afe661d380d664e7
       - pypi: https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/05/4a/78c6285577c375e7cf27277ea8ee6961224327f1e1a0c44af5f17f23635c/scipy-1.18.1-cp312-cp312-macosx_12_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/0c/d5/c5db1ea3394c6e1732fb3286b3bd878b59507a8f77d32a2cebda7d7b7cd4/donfig-0.8.1.post1-py3-none-any.whl
@@ -10942,7 +10942,7 @@ packages:
   - pytest>=7 ; extra == 'dev'
   - ruff>=0.5 ; extra == 'dev'
   requires_python: '>=3.10'
-- pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#aa2b7d2b6f0c6c9d87bf5968e82694e522eb7ea9
+- pypi: git+https://github.com/vivarium-collective/vivarium-workbench.git?branch=main#eb03bb121460a546e4d1cba0afe661d380d664e7
   name: vivarium-workbench
   version: 0.4.1
   requires_dist:

@@ -56,6 +56,13 @@ jobs:
         # locked env (pixi.lock, channel: conda-forge) rather than a uv venv —
         # this gives composite discovery real dolfinx instead of degrading to
         # an unresolved composite.
+        env:
+          # Composite discovery imports dolfinx, which calls MPI_Init. Force UCX
+          # onto TCP / shared-memory / self so it doesn't try to open an RDMA
+          # (ud_verbs) interface the GitHub runner lacks — otherwise MPI_Init
+          # aborts with "UCX ERROR uct_iface_open(ud_verbs...) Address not valid".
+          UCX_TLS: tcp,sm,self
+          OMPI_MCA_btl: "^openib"
         run: pixi run bash scripts/publish_dashboard.sh reports/published/workbench
 
       - name: Publish to gh-pages (create the branch if absent)

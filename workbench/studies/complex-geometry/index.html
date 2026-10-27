@@ -1369,7 +1369,7 @@ investigation&#39;s other advanced studies build on.
 </section>
 
 </main>
-<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/workbench", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "d2f77615a2d36c11ab91e907863379ee51fe6eb3", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/d2f77615a2d36c11ab91e907863379ee51fe6eb3", "branch": "main", "generated_at": "2026-10-27 13:04 UTC"} };</script>
+<script>window.__DASH_CONFIG__ = { mode: "snapshot", interactiveUrl: "https://github.com/vivarium-collective/viva-fenics", basePath: "/viva-fenics/workbench", inputsDownloadBase: "https://github.com/vivarium-collective/viva-fenics/raw/main", provenance: {"repo_slug": "vivarium-collective/viva-fenics", "repo_url": "https://github.com/vivarium-collective/viva-fenics", "commit": "fad02e8ff38b1043e26f5f1d73018d0f8e7a4cd8", "commit_url": "https://github.com/vivarium-collective/viva-fenics/commit/fad02e8ff38b1043e26f5f1d73018d0f8e7a4cd8", "branch": "main", "generated_at": "2026-10-27 14:14 UTC"} };</script>
 <script src="/viva-fenics/workbench/assets/data-source.js"></script>
 <script src="/viva-fenics/workbench/assets/toast.js"></script>
 <script>
@@ -1527,6 +1527,13 @@ window._seedFollowupProposal = _seedFollowupProposal;
   // run buttons in a published read-only snapshot (reproducible-rerun-spine
   // Task 4 / G2: both equally inert with no live backend to launch against).
   if (window.__DASH_CONFIG__ && window.__DASH_CONFIG__.mode === "snapshot") {
+    // The study-detail shell does NOT load walkthrough.js (which sets this on
+    // the main SPA), so set body.snapshot here. Without it every snapshot check
+    // on this page reads false — most visibly the inline bigraph-loom embed,
+    // which then mounts in LIVE mode (?id=&live=1) and hangs forever fetching
+    // /api/composite-state?ref=… against a backend the static bundle doesn't
+    // have, instead of the baked static /api/composite-state/<id>.json.
+    document.body.classList.add("snapshot");
     var reproduceBtn = document.getElementById("study-reproduce");
     if (reproduceBtn) reproduceBtn.style.display = "none";
     var runCurrentBtn = document.getElementById("study-run-current-spec");

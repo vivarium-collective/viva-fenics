@@ -51,6 +51,14 @@ jobs:
           locked: false
           frozen: false
 
+      - name: Refresh framework git deps to current main
+        # locked:false lets pixi re-solve, but it does NOT advance a
+        # `branch = "main"` git dep — pixi keeps the commit pinned in pixi.lock
+        # until an explicit update, so a publish silently ships a stale
+        # vivarium-workbench bundle. Bump the branch=main framework deps to the
+        # current tip before building.
+        run: pixi update vivarium-workbench process-bigraph viva-superpowers
+
       - name: Build read-only workbench snapshot
         # fenics-dolfinx is conda-only, so the static build runs under pixi's
         # locked env (pixi.lock, channel: conda-forge) rather than a uv venv —

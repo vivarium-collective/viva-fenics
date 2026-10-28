@@ -8,7 +8,7 @@
 # re-scaffolding, or by copying the current source from
 #   vivarium-collective/viva-template/template/.github/workflows/<template>
 # template: workspace-ci.yml.j2
-# sha256: 12577c7a4f0e0f732a6ac0c14fcd4e964c4a56a96f19f82ed3ec528bd64a6ee6
+# sha256: fe8c8f03b54507d76509e9c29e8d6e98ff5d35458278b85bb275df437162ede6
 # <<< viva-template-provenance <<<
 
 name: workspace-ci
@@ -77,7 +77,10 @@ jobs:
           ls -la external/ 2>&1 || true
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          # Rendered from the workspace's pyproject.toml requires-python by
+          # template-init.sh (">=3.12" -> "3.12", otherwise "3.11"). A
+          # 3.12-only workspace must test on 3.12, not a hardcoded 3.11.
+          python-version: "3.12"
       - name: Install uv
         run: pip install uv
       - name: Set up venv and install
@@ -95,6 +98,20 @@ jobs:
           else
             echo "No root pyproject.toml/setup.py found — installing dev tooling only."
             uv pip install pytest
+          fi
+      - name: Check uv.lock is committed and current
+        # A committed uv.lock is what makes a workspace reproducible: every checkout, CI run and remote
+        # run (the workbench forwards the lock's framework pins to the backend) gets the same versions.
+        # Present -> it must match pyproject.toml (`uv lock --check` fails on a stale lock; refresh with
+        # `uv lock` and commit). Absent -> a warning, so a workspace scaffolded before this check keeps a
+        # green CI until it commits one (`uv lock`, then commit uv.lock).
+        run: |
+          if [ ! -f pyproject.toml ]; then
+            echo "No pyproject.toml — no lock to check."
+          elif [ -f uv.lock ]; then
+            uv lock --check
+          else
+            echo "::warning title=No committed uv.lock::This workspace has no committed uv.lock, so its dependency versions are not reproducible. Run 'uv lock' and commit uv.lock."
           fi
       - name: Lint workspace
         run: |
@@ -150,3 +167,23 @@ jobs:
         run: |
           source .venv/bin/activate
           pytest tests/ -v --color=yes
+
+      - name: Publish render check (no study would 404)
+        run: |
+          # The deploy job (publish-dashboard.yml) renders one read-only shell
+          # per study. If any study fails to render, the published site 404s on
+          # opening it. That guard already lives in the deploy — but the deploy
+          # runs AFTER merge, so a study-render break reaches the live site
+          # before anyone sees it. Run the SAME snapshot build here, as a
+          # required PR gate, so the break is caught before merge. Mirror the
+          # deploy's vivarium-workbench@main install so the gate tests exactly
+          # what will deploy.
+          source .venv/bin/activate
+          uv pip install --reinstall-package vivarium-workbench "vivarium-workbench @ git+https://github.com/vivarium-collective/vivarium-workbench.git@main"
+          if vivarium-workbench-publish --help >/dev/null 2>&1; then
+            # A non-zero exit here means "the snapshot would 404 on opening one
+            # or more studies" — fail the PR rather than the live site.
+            vivarium-workbench-publish --workspace . --out "${RUNNER_TEMP:-/tmp}/render-check"
+          else
+            echo "vivarium-workbench-publish unavailable (older pin) — skipping render check."
+          fi

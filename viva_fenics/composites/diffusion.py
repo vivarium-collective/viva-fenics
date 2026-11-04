@@ -9,7 +9,7 @@ can wire a sibling process into the same ``stores.source`` for coupling.
 
 from __future__ import annotations
 
-from viva_superpowers.composite_generator import composite_generator
+from process_bigraph.composite_generator import composite_generator
 
 from viva_fenics import fem
 from viva_fenics.processes.diffusion import _gaussian_bump

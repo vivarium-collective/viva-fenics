@@ -33,6 +33,12 @@ RUN mkdir -p /app/.results_cache
 # trade-off for robustness across source types.
 RUN uv sync --no-install-project || uv sync
 
+# The image's command is the workbench, so fail the build, not the container,
+# when the sync left it out. pyproject.toml's default `workbench` dependency
+# group installs the `dashboard` extra, which holds it; a workspace that keeps
+# vivarium-workbench in its runtime dependencies gets it from those.
+RUN uv run --no-sync vivarium-workbench serve --help > /dev/null
+
 EXPOSE 9863
 
 CMD ["uv", "run", "vivarium-workbench", "serve", "--workspace", "/app", "--host", "0.0.0.0", "--port", "9863"]

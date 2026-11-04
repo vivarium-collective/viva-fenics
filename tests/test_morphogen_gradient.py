@@ -33,7 +33,7 @@ from viva_fenics import fem
 
 
 def test_morphogen_gradient_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".morphogen_gradient") for e in _REGISTRY)
 
 

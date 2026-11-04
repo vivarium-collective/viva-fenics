@@ -13,7 +13,7 @@ why an empty starting array corrupts the first ``array[float]`` apply).
 
 from __future__ import annotations
 
-from viva_superpowers.composite_generator import composite_generator
+from process_bigraph.composite_generator import composite_generator
 
 from viva_fenics.processes.diffusion import _gaussian_bump
 from viva_fenics.processes.moving_boundary import _build_mesh, reference_coords

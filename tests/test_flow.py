@@ -126,7 +126,7 @@ def test_higher_lid_velocity_increases_speed_integral():
 
 
 def test_navier_stokes_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".navier_stokes") for e in _REGISTRY)
 
 
@@ -270,7 +270,7 @@ def test_cylinder_flow_drag_lift_finite_and_plausible_sign():
 
 
 def test_cylinder_flow_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".vortex_street") for e in _REGISTRY)
 
 

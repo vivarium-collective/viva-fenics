@@ -12,7 +12,7 @@ this generator only parameterizes a single point on that sweep, reporting
 
 from __future__ import annotations
 
-from viva_superpowers.composite_generator import composite_generator
+from process_bigraph.composite_generator import composite_generator
 
 
 @composite_generator(

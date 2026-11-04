@@ -34,7 +34,7 @@ KPP): swap ``LinearDegradationProcess`` for any other process that reads
 from __future__ import annotations
 
 import numpy as np
-from viva_superpowers.composite_generator import composite_generator
+from process_bigraph.composite_generator import composite_generator
 
 from viva_fenics import fem
 

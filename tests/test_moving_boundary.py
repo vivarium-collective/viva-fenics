@@ -155,7 +155,7 @@ def test_domain_area_helper_matches_analytic_rectangle():
 
 
 def test_moving_boundary_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".moving_boundary") for e in _REGISTRY)
 
 

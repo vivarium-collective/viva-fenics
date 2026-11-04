@@ -185,7 +185,7 @@ def test_porous_flow_step_update():
 
 
 def test_porous_lattice_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".porous_lattice") for e in _REGISTRY)
 
 

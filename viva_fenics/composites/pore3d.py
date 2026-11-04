@@ -11,7 +11,7 @@ sweep. This generator exposes a real, buildable composite id for the solver.
 """
 from __future__ import annotations
 
-from viva_superpowers.composite_generator import composite_generator
+from process_bigraph.composite_generator import composite_generator
 
 
 @composite_generator(

@@ -38,6 +38,10 @@ From: python:3.13-slim-bookworm
     # (faster + handles workspaces whose pyproject still has the
     # hatchling bypass), fall back to a full sync.
     uv sync --no-install-project || uv sync
+    # Same check as the Dockerfile: the runscript is the workbench, so fail the
+    # build when the sync left it out (see the `workbench` dependency group in
+    # pyproject.toml).
+    uv run --no-sync vivarium-workbench serve --help > /dev/null
 
 %environment
     export PYTHONUNBUFFERED=1

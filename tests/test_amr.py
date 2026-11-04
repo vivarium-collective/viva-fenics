@@ -167,7 +167,7 @@ def test_adaptive_refinement_step_runs():
 
 
 def test_adaptive_refinement_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
 
     assert any(e.endswith(".adaptive_refinement") for e in _REGISTRY)
 

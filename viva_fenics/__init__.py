@@ -8,8 +8,11 @@ workspace's dolfinx-free ``uv`` venv -- only *running* one there raises a clear
 spatial-transport classes are imported unconditionally below and the
 dolfinx-dependent imports are guarded: without dolfinx, ``import viva_fenics``
 still succeeds and exposes those two classes, while the heavy FEM processes /
-composites / ``build_core`` are simply absent.
+composites / ``build_core`` are simply absent. Only a missing FEniCSx-stack
+module is tolerated; any other ImportError propagates.
 """
+
+import importlib.util
 
 # dolfinx-free: importable anywhere (dolfinx import stays lazy inside update()).
 from viva_fenics.processes.spatial_transport import (
@@ -21,6 +24,9 @@ __all__ = [
     "FenicsReactiveTransportProcess",
     "FenicsThermophoreticTrapProcess",
 ]
+
+# The conda FEniCSx stack (pixi.toml): the only modules allowed to be absent.
+_FENICSX_MODULES = frozenset({"dolfinx", "ufl", "basix", "ffcx", "mpi4py", "petsc4py", "gmsh"})
 
 try:  # the dolfinx-backed FEM stack (present under pixi, absent in a uv .venv)
     from viva_fenics import viz
@@ -41,7 +47,15 @@ try:  # the dolfinx-backed FEM stack (present under pixi, absent in a uv .venv)
     from viva_fenics.composites.peristalsis import peristalsis
     from viva_fenics.composites.amr import adaptive_refinement
     from viva_fenics.core import build_core, register_processes
-except ImportError:  # pragma: no cover - dolfinx not installed (consumer uv venv)
+except ImportError as exc:  # pragma: no cover - dolfinx not installed (consumer uv venv)
+    # Only an absent conda FEniCSx stack is expected here. Any other missing
+    # module is an undeclared dependency, and a FEniCSx module that is installed
+    # but fails to import (e.g. an API outside the pinned dolfinx range) is a
+    # broken environment: raise both rather than silently drop every class and
+    # composite below.
+    root = (exc.name or "").split(".")[0]
+    if root not in _FENICSX_MODULES or importlib.util.find_spec(root) is not None:
+        raise
     _DOLFINX_AVAILABLE = False
 else:
     _DOLFINX_AVAILABLE = True

@@ -15,7 +15,7 @@ def test_convergence_rate():
 
 
 def test_mesh_convergence_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".mesh_convergence") for e in _REGISTRY)
 
 

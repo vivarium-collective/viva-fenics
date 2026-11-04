@@ -59,7 +59,7 @@ def test_fisher_kpp_front_grows():
 
 
 def test_reaction_diffusion_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".reaction_diffusion") for e in _REGISTRY)
 
 

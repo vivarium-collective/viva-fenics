@@ -14,7 +14,7 @@ def test_diffusion_mass_and_smoothing():
 
 
 def test_diffusion_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".transient_diffusion") for e in _REGISTRY)
 
 

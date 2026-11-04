@@ -172,7 +172,7 @@ def test_net_flow_grows_with_amplitude():
 
 
 def test_peristalsis_generator_registered():
-    from viva_superpowers.composite_generator import _REGISTRY
+    from process_bigraph.composite_generator import _REGISTRY
     assert any(e.endswith(".peristalsis") for e in _REGISTRY)
 
 

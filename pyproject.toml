@@ -4,24 +4,55 @@ build-backend = "hatchling.build"
 
 [project]
 name = "viva-fenics"
-version = "0.1.0"
+version = "0.1.1"
 description = "Process-bigraph wrapper for FEniCSx (dolfinx)"
 readme = "README.md"
 requires-python = ">=3.12"
+# Runtime dependencies are only what viva_fenics imports to run its processes, so
+# a backend that installs the package into its own environment (compose-api, an
+# HPC runner) gets no dashboard stack. dolfinx and the rest of the FEniCSx stack
+# (ufl, basix, mpi4py, petsc4py) and gmsh are conda-only: they come from
+# pixi.toml, not from here. tests/test_packaging.py checks that every import is
+# declared in one or the other.
 dependencies = [
-    "bigraph-schema>=0.0.60",
-    "process-bigraph>=0.0.66",
-    "pyyaml>=6.0",
-    "jsonschema[format-nongpl]>=4.21",
-    "jinja2>=3.1",
+    "process-bigraph>=1.8.5",
+    "bigraph-schema>=1.8.1",
+    "numpy",
+    "scipy",
+    # viva_fenics.viz, imported by the package itself.
     "plotly>=5.0",
+    "pyyaml>=6.0",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["viva_fenics"]
+[project.optional-dependencies]
+# Web-based workspace dashboard, reports and visualizations (viva-template's
+# `dashboard` extra), plus viva-superpowers for the workspace skills and the
+# dashboard publish. The container image and `.[dev]` install it.
+dashboard = [
+    "bigraph-viz>=2.0.3",
+    "jsonschema[format-nongpl]>=4.21",
+    "jinja2>=3.1",
+    "pypdf>=4.0",
+    "matplotlib",
+    "plotly",
+    "vivarium-workbench",
+    "viva-superpowers",
+]
+dev = ["pytest>=7.4", "viva-fenics[dashboard]"]
+
+# `uv sync` (the container image) installs no extras but does install uv's default
+# dependency groups; this group carries the dashboard extra into the image.
+[dependency-groups]
+workbench = ["viva-fenics[dashboard]"]
+
+[tool.uv]
+default-groups = ["workbench"]
 
 [tool.uv.sources]
 vivarium-workbench = { git = "https://github.com/vivarium-collective/vivarium-workbench.git", branch = "main" }
 
-[project.optional-dependencies]
-dev = ["pytest"]
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["viva_fenics"]

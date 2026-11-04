@@ -18,7 +18,7 @@ the physics and the "geometry-order coupling" mechanics).
 
 from __future__ import annotations
 
-from viva_superpowers.composite_generator import composite_generator
+from process_bigraph.composite_generator import composite_generator
 
 from viva_fenics.processes.peristalsis import zero_geometry_field, zero_flow_fields
 

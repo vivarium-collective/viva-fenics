@@ -63,12 +63,13 @@ class MultisolutePoreStep(Step):
         # enrichment/peak are per-species in the config's species order (the
         # names are config-known, so they are not re-emitted as a tree port --
         # that keeps every emitted port a concrete, resolvable schema type).
+        # overwrite: a step's results replace what the store holds; a bare float or array would add onto it.
         return {
-            "enrichment": "array[float]",
-            "peak": "array[float]",
-            "colocalization_min": "float",
-            "colocalization_mean": "float",
-            "n_species": "integer",
+            "enrichment": "overwrite[array[float]]",
+            "peak": "overwrite[array[float]]",
+            "colocalization_min": "overwrite[float]",
+            "colocalization_mean": "overwrite[float]",
+            "n_species": "overwrite[integer]",
         }
 
     def update(self, state):

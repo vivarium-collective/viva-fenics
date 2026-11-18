@@ -98,9 +98,10 @@ class PoissonSolverStep(Step):
         return {}
 
     def outputs(self):
+        # overwrite: a step's results replace what the store holds; a bare float or array would add onto it
         return {
-            "solution": "array[float]",
-            "l2_error": "float",
+            "solution": "overwrite[array[float]]",
+            "l2_error": "overwrite[float]",
         }
 
     def update(self, state):

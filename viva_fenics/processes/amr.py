@@ -32,11 +32,12 @@ class AdaptiveRefinementStep(Step):
         return {}
 
     def outputs(self):
+        # overwrite: a step's results replace what the store holds; a bare float or array would add onto it
         return {
-            "solution": "array[float]",
-            "energy_error": "float",
-            "dofs_history": "array[float]",
-            "error_history": "array[float]",
+            "solution": "overwrite[array[float]]",
+            "energy_error": "overwrite[float]",
+            "dofs_history": "overwrite[array[float]]",
+            "error_history": "overwrite[array[float]]",
         }
 
     def update(self, state):

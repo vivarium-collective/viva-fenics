@@ -989,16 +989,17 @@ class PorousFlowStep(Step):
         return {}
 
     def outputs(self):
+        # overwrite: a step's results replace what the store holds; a bare float or array would add onto it
         return {
-            "velocity_x": "array[float]",
-            "velocity_y": "array[float]",
-            "pressure": "array[float]",
-            "porosity": "float",
-            "mean_ux": "float",
-            "k_eff": "float",
-            "divergence_mean": "float",
-            "noslip_max_speed": "float",
-            "n_cells": "integer",
+            "velocity_x": "overwrite[array[float]]",
+            "velocity_y": "overwrite[array[float]]",
+            "pressure": "overwrite[array[float]]",
+            "porosity": "overwrite[float]",
+            "mean_ux": "overwrite[float]",
+            "k_eff": "overwrite[float]",
+            "divergence_mean": "overwrite[float]",
+            "noslip_max_speed": "overwrite[float]",
+            "n_cells": "overwrite[integer]",
         }
 
     def update(self, state):

@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package + pytest (lean; the dolfinx stack is conda-only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest
+      - name: Import check
+        run: python -c "import viva_fenics"
+      - name: Run tests
+        # tests/conftest.py skips the dolfinx-backed modules when the FEniCSx
+        # backend is absent (a vanilla runner cannot build it); the backend-free
+        # checks still run. The full suite runs in the repo's conda/pixi image.
+        run: pytest -q

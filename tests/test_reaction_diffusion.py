@@ -9,6 +9,7 @@ import importlib.util
 
 import numpy as np
 import pytest
+from process_bigraph import allocate_core
 
 from viva_fenics.processes.reaction_diffusion import (
     FenicsxReactionDiffusionProcess,
@@ -61,7 +62,7 @@ def test_fail_loud_on_underdeclared_external_species():
             "pde": {"species": {"A": {"diffusion": 1.0}},
                     "terms": [{"species": "A", "coeff": -1.0, "k": 1.0, "reactants": {"A": 1, "Z": 1}}],
                     "external_species": ["B"]},  # explicit, but misses Z
-        })
+        }, core=allocate_core())
 
 
 @pytest.mark.skipif(not _HAVE_DOLFINX, reason="dolfinx (conda FEniCSx stack) not installed")

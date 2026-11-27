@@ -19,10 +19,12 @@ from viva_fenics.processes.spatial_transport import (
     FenicsReactiveTransportProcess,
     FenicsThermophoreticTrapProcess,
 )
+from viva_fenics.processes.reaction_diffusion import FenicsxReactionDiffusionProcess
 
 __all__ = [
     "FenicsReactiveTransportProcess",
     "FenicsThermophoreticTrapProcess",
+    "FenicsxReactionDiffusionProcess",
 ]
 
 # The conda FEniCSx stack (pixi.toml): the only modules allowed to be absent.

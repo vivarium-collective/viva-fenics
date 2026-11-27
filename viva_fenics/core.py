@@ -32,6 +32,7 @@ from .processes.spatial_transport import (
     FenicsReactiveTransportProcess,
     FenicsThermophoreticTrapProcess,
 )
+from .processes.reaction_diffusion import FenicsxReactionDiffusionProcess
 from .types import register_types
 
 # New processes (...) just need an import above and an entry here.
@@ -52,6 +53,7 @@ _PROCESSES = (
     ("MultisolutePoreStep", MultisolutePoreStep),
     ("FenicsReactiveTransportProcess", FenicsReactiveTransportProcess),
     ("FenicsThermophoreticTrapProcess", FenicsThermophoreticTrapProcess),
+    ("FenicsxReactionDiffusionProcess", FenicsxReactionDiffusionProcess),
 )
 
 

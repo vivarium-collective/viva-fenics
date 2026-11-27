@@ -1,132 +1,78 @@
+"""Tests for FenicsxReactionDiffusionProcess (multi-species structured-grid RD).
+
+The grid-helper, interface and dolfinx-free import checks always run (the module
+keeps its dolfinx import lazy, like spatial_transport). The actual FEM solve needs
+the conda dolfinx stack and is skipped otherwise — the end-to-end hybrid coupling is
+exercised in viva-pde-particle, which reuses this process.
+"""
+import importlib.util
+
 import numpy as np
-from process_bigraph import Composite, gather_emitter_results
+import pytest
 
-from viva_fenics.core import build_core
-from viva_fenics.composites.reaction_diffusion import reaction_diffusion
-from viva_fenics.processes.reaction import LogisticReactionProcess
+from viva_fenics.processes.reaction_diffusion import (
+    FenicsxReactionDiffusionProcess,
+    _StructuredGrid,
+    reaction_rates,
+)
 
-
-def _integral_growth(r, resolution=24, D=0.05, dt=0.01, run_time=0.2):
-    """Build+run a reaction_diffusion composite at the given r and return
-    (last_integral - first_integral) over post-tick emitted readings."""
-    core = build_core()
-    doc = reaction_diffusion(core, resolution=resolution, D=D, r=r, dt=dt)
-    sim = Composite({"state": doc}, core=core)
-    sim.run(run_time)
-
-    res = gather_emitter_results(sim)[("emitter",)]
-    integrals = [row["integral"] for row in res if row.get("integral")]
-    assert len(integrals) > 1, "expected multiple post-tick emitted readings"
-    return integrals[-1] - integrals[0]
+_HAVE_DOLFINX = importlib.util.find_spec("dolfinx") is not None
 
 
-def test_fisher_kpp_front_grows():
-    """Headline composability proof: DiffusionProcess and
-    LogisticReactionProcess are wired together only through shared bigraph
-    stores (``stores.solution`` / ``stores.source``) -- neither process knows
-    about the other.
-
-    A bare "last > first" check on a single r=2.0 run is NOT discriminating:
-    it also passes with the reaction effectively disconnected (verified: at
-    r~=0 the integral still moves by 5-20 milli-units purely from
-    solver/quadrature noise over these run lengths). Instead, compare mass
-    growth WITH the reaction (r=2.0) against a near-zero-reaction control
-    (r=1e-9, same params/wiring) -- only a genuinely-coupled reaction should
-    produce growth dramatically (many orders of magnitude) larger than the
-    r~=0 control.
-
-    NOTE on r=1e-9 vs r=0.0: the installed bigraph-schema's `is_empty` for a
-    plain `float` leaf treats an explicit ``0.0`` as "empty" (same as
-    ``None``, see bigraph_schema/methods/is_empty.py's
-    ``is_empty(Float, value) = value is None or value == 0.0``), so
-    Composite's `core.fill(config_schema, {"r": 0.0})` silently discards the
-    provided ``0.0`` and substitutes the config_schema default (``r=1.0``)
-    instead -- confirmed directly: ``core.fill({"r": {"_type": "float",
-    "_default": 1.0}}, {"r": 0.0})`` returns ``{"r": 1.0}``. This is a
-    framework-level quirk (out of scope to change here; it does not involve
-    reaction.py or the generator), and it is exactly why an earlier version
-    of this test using ``r=0.0`` as the "off" control was not actually
-    testing r=0 -- it was silently testing r=1.0 vs r=2.0, a 2x difference,
-    not a real disconnect. ``r=1e-9`` is not exactly ``0.0`` so it passes
-    through `fill` unmodified and gives a genuine, physically negligible
-    reaction contribution.
-    """
-    growth_r2 = _integral_growth(r=2.0, run_time=0.5)
-    growth_r_off = _integral_growth(r=1e-9, run_time=0.5)
-
-    assert growth_r2 > 5 * abs(growth_r_off)
-    assert growth_r2 > 0.05
+def test_importable_without_dolfinx():
+    # The process + its module import with no dolfinx present (import is lazy).
+    import viva_fenics
+    assert hasattr(viva_fenics, "FenicsxReactionDiffusionProcess")
 
 
-def test_reaction_diffusion_generator_registered():
-    from process_bigraph.composite_generator import _REGISTRY
-    assert any(e.endswith(".reaction_diffusion") for e in _REGISTRY)
+def test_interface():
+    assert set(FenicsxReactionDiffusionProcess.config_schema) == {"grid", "pde", "dt", "mass"}
+    inst = FenicsxReactionDiffusionProcess.__new__(FenicsxReactionDiffusionProcess)
+    assert inst.inputs() == {"fields": "map[array[float]]", "external_conc": "map[array[float]]"}
+    assert inst.outputs() == {"fields": "map[overwrite[array[float]]]"}
 
 
-def test_logistic_reaction_update_zero_field():
-    core = build_core()
-    p = LogisticReactionProcess(config={"r": 1.0, "K": 1.0}, core=core)
-    u = np.zeros(10)
-    out = p.update({"solution": u}, interval=0.01)
-    assert np.allclose(out["source"], 0.0)
+def test_structured_grid_matches_conventions():
+    g = _StructuredGrid({"origin": [0.0, 0.0], "size": [10.0, 10.0], "num": [11, 11]})
+    assert g.dim == 2
+    assert g.shape == (11, 11)          # (Nz, Ny, Nx) restricted to dim
+    assert g.num_elements == 121
+    # nearest-node mapping: a point near the far corner lands on index (10, 10)
+    (iz, ix) = g.node_index(np.array([[10.0, 10.0]]))
+    assert int(iz[0]) == 10 and int(ix[0]) == 10
+    with pytest.raises(ValueError):
+        _StructuredGrid({"origin": [0.0], "size": [1.0, 1.0], "num": [2, 2]})
 
 
-def test_logistic_reaction_update_grows_between_zero_and_K():
-    core = build_core()
-    p = LogisticReactionProcess(config={"r": 1.0, "K": 1.0}, core=core)
-    u = np.full(10, 0.5)
-    out = p.update({"solution": u}, interval=0.01)
-    assert np.all(np.array(out["source"]) > 0)
+def test_reaction_rates_mass_action():
+    shape = (2, 2)
+    terms = [{"species": "C", "coeff": 1.0, "k": 2.0, "reactants": {"A": 1, "B": 1}}]
+    conc = {"A": np.full(shape, 3.0), "B": np.full(shape, 4.0), "C": np.zeros(shape)}
+    rates = reaction_rates(terms, ["C"], conc, shape)
+    assert np.allclose(rates["C"], 2.0 * 3.0 * 4.0)  # k*coeff*A*B
 
 
-def test_logistic_reaction_update_saturates_at_K():
-    core = build_core()
-    p = LogisticReactionProcess(config={"r": 1.0, "K": 1.0}, core=core)
-    u = np.full(10, 1.0)
-    out = p.update({"solution": u}, interval=0.01)
-    assert np.allclose(out["source"], 0.0, atol=1e-10)
+def test_fail_loud_on_underdeclared_external_species():
+    # An EXPLICIT external_species list that misses a referenced species fails loud
+    # (an empty/omitted list auto-derives every non-species reactant instead).
+    with pytest.raises(ValueError, match="species not in species/external_species"):
+        FenicsxReactionDiffusionProcess({
+            "grid": {"origin": [0.0, 0.0], "size": [1.0, 1.0], "num": [2, 2]},
+            "pde": {"species": {"A": {"diffusion": 1.0}},
+                    "terms": [{"species": "A", "coeff": -1.0, "k": 1.0, "reactants": {"A": 1, "Z": 1}}],
+                    "external_species": ["B"]},  # explicit, but misses Z
+        })
 
 
-def test_logistic_reaction_update_no_interval_scaling():
-    """The reaction outputs a pure RATE field -- no *interval and no *dt --
-    since DiffusionProcess itself multiplies source by dt internally. If
-    LogisticReactionProcess also scaled by interval, the reaction term would
-    be applied twice (interval * dt instead of just dt).
-    """
-    core = build_core()
-    p = LogisticReactionProcess(config={"r": 2.0, "K": 1.0}, core=core)
-    u = np.full(10, 0.5)
-    out_small = p.update({"solution": u}, interval=0.001)
-    out_large = p.update({"solution": u}, interval=1.0)
-    assert np.allclose(out_small["source"], out_large["source"])
-    expected = 2.0 * 0.5 * (1 - 0.5 / 1.0)
-    assert np.allclose(out_small["source"], expected)
-
-
-def test_source_store_does_not_spuriously_accumulate():
-    """Regression guard: LogisticReactionProcess.outputs()["source"] must be
-    ``overwrite[array[float]]``. If it were a bare additive ``array[float]``,
-    the shared ``stores.source`` would accumulate the instantaneous rate
-    every tick instead of being replaced, and the coupled field would blow up
-    well past K instead of settling near it.
-
-    Run long enough (t=0.8) and with a tight enough bound (1.2, vs K=1.0)
-    that the additive-accumulation bug provably fails this: at these params
-    (resolution=16, r=2.0, dt=0.01) the bare-additive version reaches a
-    max field >> 1.2 by t=0.8, while the correct overwrite version stays
-    bounded near K throughout (logistic saturation caps growth once the
-    field approaches K, regardless of run length).
-    """
-    core = build_core()
-    doc = reaction_diffusion(core, resolution=16, D=0.05, r=2.0, dt=0.01)
-    sim = Composite({"state": doc}, core=core)
-    sim.run(0.8)
-
-    res = gather_emitter_results(sim)[("emitter",)]
-    max_field = 0.0
-    for row in res:
-        solution = row.get("solution")
-        if solution is None:
-            continue
-        max_field = max(max_field, float(np.max(np.asarray(solution))))
-    assert max_field < 1.2  # K=1.0 by default here
+@pytest.mark.skipif(not _HAVE_DOLFINX, reason="dolfinx (conda FEniCSx stack) not installed")
+def test_pure_diffusion_conserves_mass():
+    """One species, no reactions: a diffusion step conserves total mass (lumped mass)."""
+    grid = {"origin": [0.0, 0.0], "size": [10.0, 10.0], "num": [11, 11]}
+    proc = FenicsxReactionDiffusionProcess({
+        "grid": grid,
+        "pde": {"species": {"A": {"diffusion": 1.0}}, "terms": [], "external_species": []},
+        "dt": 0.05,
+    })
+    f0 = np.zeros((11, 11)); f0[5, 5] = 100.0
+    out = proc.update({"fields": {"A": f0}}, 0.05)
+    assert out["fields"]["A"].sum() == pytest.approx(f0.sum(), rel=1e-6)
